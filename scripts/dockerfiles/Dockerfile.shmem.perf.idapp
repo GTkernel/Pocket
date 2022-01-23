@@ -1,0 +1,29 @@
+# FROM python:3.6-slim-stretch
+FROM ubuntu:bionic
+
+ENV POCKET_CLIENT True
+
+RUN apt-get update -y && \
+    apt-get install -y --fix-missing git wget && \
+    apt install -y python3.6 python3-pip && \
+    python3 -m pip && \
+    python3 -m pip install --upgrade pip setuptools wheel && \
+    python3 -m pip install opencv-python==4.1.0.25  && \
+    python3 -m pip install opencv-contrib-python && \
+    python3 -m pip install absl-py && \
+    apt install -y git wget libsm6 libxrender1 libfontconfig1 libglib2.0-0 time && \
+    python3 -m pip install --upgrade pip && \
+    python3 -m pip install grpcio && \
+    python3 -m pip install grpcio-tools && \
+    python3 -m pip install protobuf && \
+    git clone https://github.com/whalepark/yolov3-tf2.git /root/yolov3-tf2 && \
+    cd /root/yolov3-tf2 && \
+    git checkout experiments && \
+    git pull && \
+    cd /root/yolov3-tf2/tfrpc/proto/ && \
+    bash gen_proto.sh && \
+    python3 -m pip install sysv_ipc && \
+    apt-get install -y linux-tools-common linux-tools-generic linux-tools-`uname -r`
+#     apt install -y python3.6 python3-pip linux-tools-common linux-tools-generic linux-tools-`uname -r` && \
+
+

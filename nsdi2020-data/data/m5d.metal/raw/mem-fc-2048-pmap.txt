@@ -1,0 +1,40 @@
+18068:   ../bin/firecracker --no-api --config-file /tmp/fc-0.json
+Address           Kbytes     RSS   Dirty Mode  Mapping
+0000000000400000    1724    1640       0 r-x-- firecracker
+0000000000400000       0       0       0 r-x-- firecracker
+00000000007af000      56      56       4 rw--- firecracker
+00000000007af000       0       0       0 rw--- firecracker
+00000000007bd000       8       8       8 rw---   [ anon ]
+00000000007bd000       0       0       0 rw---   [ anon ]
+0000000002695000     248     176     176 rw---   [ anon ]
+0000000002695000       0       0       0 rw---   [ anon ]
+00007f257b765000       8       0       0 rw---   [ anon ]
+00007f257b765000       0       0       0 rw---   [ anon ]
+00007f257b767000       8       0       0 -----   [ anon ]
+00007f257b767000       0       0       0 -----   [ anon ]
+00007f257b769000    2052     264     264 rw---   [ anon ]
+00007f257b769000       0       0       0 rw---   [ anon ]
+00007f257b96a000       4       4       0 r--s- UCT
+00007f257b96a000       0       0       0 r--s- UCT
+00007f257b96b000      12       4       4 rw-s-   [ anon ]
+00007f257b96b000       0       0       0 rw-s-   [ anon ]
+00007f257b96e000       4       4       4 rw-s- zero (deleted)
+00007f257b96e000       0       0       0 rw-s- zero (deleted)
+00007f257b96f000       4       4       4 rw-s- zero (deleted)
+00007f257b96f000       0       0       0 rw-s- zero (deleted)
+00007f257b970000      12      12      12 rw-s- zero (deleted)
+00007f257b970000       0       0       0 rw-s- zero (deleted)
+00007f257b973000 2097152  205368  205112 rw-s- zero (deleted)
+00007f257b973000       0       0       0 rw-s- zero (deleted)
+00007f25fb973000      12       4       4 rw---   [ anon ]
+00007f25fb973000       0       0       0 rw---   [ anon ]
+00007ffc08b0c000     132      36      36 rw---   [ stack ]
+00007ffc08b0c000       0       0       0 rw---   [ stack ]
+00007ffc08b74000      12       0       0 r----   [ anon ]
+00007ffc08b74000       0       0       0 r----   [ anon ]
+00007ffc08b77000       8       4       0 r-x--   [ anon ]
+00007ffc08b77000       0       0       0 r-x--   [ anon ]
+ffffffffff600000       4       0       0 r-x--   [ anon ]
+ffffffffff600000       0       0       0 r-x--   [ anon ]
+---------------- ------- ------- ------- 
+total kB         2101460  207584  205628

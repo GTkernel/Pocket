@@ -1,0 +1,2 @@
+  PID    VSZ   RSS COMMAND
+15372 1577172 199068 ../bin/firecracker --no-api --config-file /tmp/fc-0.json

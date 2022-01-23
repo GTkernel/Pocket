@@ -1,0 +1,4 @@
+# FROM python:3.6-slim-stretch
+FROM ubench_exp_grpc:latest
+
+ADD ./imgs /imgs

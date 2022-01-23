@@ -1,0 +1,77 @@
+syntax = "proto3";
+package exp;
+
+service ExperimentService {
+    rpc Init (InitRequest) returns (InitResponse) {}
+    rpc Echo (EchoRequest) returns (EchoResponse) {}
+    rpc SendFilePath (SendFilePathRequest) returns (SendFilePathResponse) {}
+    rpc SendFileBinary (SendFileBinaryRequest) returns (SendFileBinaryResponse) {}
+    rpc ServerIOLatency (ServerIOLatencyRequest) returns (ServerIOLatencyResponse) {}
+    rpc SendViaShmem (SendViaShmemRequest) returns (SendViaShmemResponse) {}
+    rpc SendViaShmem_ExcludeIO (SendViaShmem_ExcludeIORequest) returns (SendViaShmem_ExcludeIOResponse) {}
+    rpc NOP(NOPRequest) returns (NOPResponse) {}
+}
+
+message InitRequest {
+    int32 key = 1;
+}
+
+message InitResponse {
+
+}
+
+message EchoRequest {
+    string data = 1;
+}
+
+message EchoResponse {
+    string data = 1;
+}
+
+message SendFilePathRequest {
+    string container_id = 1;
+    string path = 2;
+}
+
+message SendFilePathResponse {
+
+}
+message SendFileBinaryRequest {
+    bytes bin = 1;
+}
+
+message SendFileBinaryResponse {
+}
+
+message ServerIOLatencyRequest {
+    string container_id = 1;
+    string path = 2;
+}
+
+message ServerIOLatencyResponse {
+    string log = 1;
+}
+
+message SendViaShmemRequest {
+    int32 data_size = 1;
+}
+
+message SendViaShmemResponse {
+
+}
+
+message SendViaShmem_ExcludeIORequest {
+    uint32 data_size = 1;
+}
+
+message SendViaShmem_ExcludeIOResponse {
+
+}
+
+message NOPRequest {
+
+}
+
+message NOPResponse {
+
+}

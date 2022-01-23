@@ -1,0 +1,485 @@
+#!/usr/bin/python3
+import sys
+import argparse
+import subprocess
+import socket
+import json
+import os
+from shlex import split
+import logging
+from time import time
+
+
+DIRPATH = os.path.dirname(os.path.realpath(__file__))
+# DIRPATH = '/'
+POCKETD_SOCKET_PATH = f'{DIRPATH}/tmp/pocketd.sock'
+
+
+class GlobalOption:
+    def __init__(self, parser):
+        self.debug = parser.parse_args(['--debug']).debug
+
+class PocketDaemon:
+    def __init__(self):
+        pass
+
+    def make_json(self, sender, command, args_dict):
+        tmp_data_to_send = {}
+        args_dict['sender'] = sender
+        args_dict['command'] = command
+        data_to_send = json.dumps(args_dict)
+        return data_to_send
+
+    # def notify_start(self, app_name, server_name):
+    #     my_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    #     my_socket.connect(POCKETD_SOCKET_PATH)
+    #     args_dict = {'sender': 'CLI',
+    #                  'command': 'run',
+    #                  'client': app_name, 'service': server_name}
+    #     json_data_to_send = json.dumps(args_dict)
+    #     my_socket.send(json_data_to_send.encode('utf-8'))
+    #     data_received = my_socket.recv(1024)
+    #     logging.debug(f'data_received={data_received}')
+    #     my_socket.close()
+
+    # def measure_resource(self, container_list):
+
+
+
+    def daemon_config(self, tmp_args_dict):
+        my_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        my_socket.connect(POCKETD_SOCKET_PATH)
+        sender = 'CLI'
+        command = 'config'
+        args_dict = json.dumps(tmp_args_dict)
+        json_data_to_send = self.make_json(sender, command, args_dict)
+        my_socket.send(json_data_to_send.encode('utf-8'))
+        data_received = my_socket.recv(1024)
+        logging.debug(f'data_received={data_received}')
+        my_socket.close()
+
+
+class DockerUtils:
+    @staticmethod
+    def get_container_id(name: str):
+        container_id = subprocess.check_output(f'docker inspect --format=\'{{{{.Id}}}}\' {name}', shell=True, encoding='utf-8').replace('/','').strip()
+        return container_id
+
+    @staticmethod
+    def get_max_mem_usage(id: str):
+        with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.max_usage_in_bytes', 'r') as f_peak_mem:
+            peak_memory = f_peak_mem.read()
+        return peak_memory
+
+    @staticmethod
+    def get_cpu_usage(id: str):
+        with open(f'/sys/fs/cgroup/cpu/docker/{id}/cpuacct.usage', 'r') as f_cpuusage:
+            cpu_usage = f_cpuusage.read()
+        return cpu_usage
+
+    @staticmethod
+    def get_page_fault(id: str):
+        pagefault =''
+        major_pagefault = ''
+        with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.stat', 'r') as mem_stat:
+            while True:
+                line = mem_stat.readline()
+                if line == '':
+                    break
+                if 'pgfault' in line:
+                    pagefault = line.split()[1]
+                elif 'pgmajfault' in line:
+                    major_pagefault = line.split()[1]
+        return pagefault, major_pagefault
+
+    @staticmethod
+    def remove_container(id_or_name: str):
+        # process = subprocess.run(['docker', 'rm', '-f', id_or_name], check=True)
+        process = subprocess.run(['docker', 'stop', '-t', '0', id_or_name], check=True)
+
+    @staticmethod
+    def stop_container(id_or_name: str):
+        # process = subprocess.run(['docker', 'rm', '-f', id_or_name], check=True)
+        process = subprocess.run(['docker', 'stop', '-t', '0', id_or_name], check=True)
+
+    @staticmethod
+    def kill_docker_container(container_name, signal='TERM'):
+        command = ['docker', 'kill', '-s', signal, container_name]
+        process = subprocess.run(command, check=True)
+
+    @staticmethod
+    def get_container_pid(container_name):
+        pid = subprocess.check_output(f'docker inspect --format=\'{{{{.State.Pid}}}}\' {container_name}', shell=True, encoding='utf-8').replace('/','').strip()
+        return pid
+
+    @staticmethod
+    def get_elapsed_time(container_name):
+        start_str = subprocess.check_output(f'docker inspect --format=\'{{{{.State.StartedAt}}}}\' {container_name} | xargs date +%s.%N -d', shell=True, encoding='utf-8').replace('/','').strip()
+        end_str = subprocess.check_output(f'docker inspect --format=\'{{{{.State.FinishedAt}}}}\' {container_name} | xargs date +%s.%N -d', shell=True, encoding='utf-8').replace('/','').strip()
+        start = float(start_str)
+        end = float(end_str)
+        return str(end-start)
+
+
+pocketd = PocketDaemon()
+
+
+def resource_gauge(name, log_dir):
+    container_id = DockerUtils.get_container_id(name)
+    cpu_usage = DockerUtils.get_cpu_usage(container_id)
+    max_memory_usage = DockerUtils.get_max_mem_usage(container_id)
+    page_fault, maj_page_fault = DockerUtils.get_page_fault(container_id)
+
+    with open(f'{log_dir}/tmp-{name}.log', 'w') as log_file:
+        log_file.write(f'cpu_usage={cpu_usage}')
+        log_file.write(f'max_memory_usage={max_memory_usage}')
+        log_file.write(f'page_fault={page_fault}\n')
+        log_file.write(f'maj_page_fault={maj_page_fault}\n')
+
+def pocket_run(args):
+    command = ['docker', 'run']
+
+    rusage_measure = args.rusage is not None
+    if rusage_measure:
+        log_dir = args.rusage
+
+    cprofile = args.cprofile is not None
+    if cprofile:
+        log_dir = args.cprofile
+
+    perf = args.perf is not None
+    if perf:
+        log_dir = args.perf
+
+    measure_latency = args.measure_latency is not None
+    if measure_latency:
+        log_dir = args.measure_latency
+
+    if args.d:
+        if rusage_measure:
+            pass
+            command.append('-di')
+        if measure_latency:
+            pass
+        else:
+            command.append('-d')
+    if args.perf is not None:
+        command.extend(['--cap-add', 'SYS_ADMIN'])
+        command.extend(['--cap-add', 'IPC_LOCK'])
+    command.extend(['--name', args.name])
+    command.extend(['--ipc', f'container:{args.service}'])
+    if args.network is not None:
+        command.extend(['--network', args.network])
+    if args.workdir is not None:
+        command.extend(['--workdir', args.workdir])
+    if args.memory is not None:
+        command.extend(['--memory', args.memory])
+    if args.cpus is not None:
+        command.extend(['--cpus', args.cpus])
+    if args.index is not None:
+        command.extend(['--cpuset-cpus', args.index])
+    if args.env is not None:
+        for elem in args.env:
+            command.extend(['--env', elem])
+    if args.volume is not None:
+        for elem in args.volume:
+            command.extend(['--volume', elem])
+
+    ## default_args
+    command.extend(['--volume', POCKETD_SOCKET_PATH])
+
+
+    if args.binary is not None:
+        command.append(args.binary)
+    # logging.debug(command)
+
+    if measure_latency:
+        command.extend(args.command)
+        logging.debug(f'command={command}')
+        # # debug
+        # try:
+        #     output = subprocess.check_output(command, stderr=subprocess.STDOUT).decode()
+        #     logging.debug(output)
+        # except subprocess.CalledProcessError as e:
+        #     output = e.output.decode()
+        #     logging.debug(output)
+
+        # process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines = True)
+        # logging.debug(process.stdout)
+
+        # block below is a regular flow
+        process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # with open(f'{log_dir}/{args.name}.latency', 'w') as f:
+        #     elapsed_time = DockerUtils.get_elapsed_time(args.name)
+        #     f.write(elapsed_time)
+        return
+    elif rusage_measure:
+        # command.extend(args.command)
+        # process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # resource_gauge(args.name, log_dir)
+
+        command.extend(['bash'])
+        process = subprocess.run(command, check=True, stderr=subprocess.STDOUT, stdout=subprocess.DEVNULL)
+
+
+        command = ['docker', 'exec', args.name]
+        command.extend(args.command)
+        logging.debug(command)
+
+        process = subprocess.run(command, check=True, stderr=subprocess.STDOUT, stdout=subprocess.DEVNULL)
+        # process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines = True)
+        # for line in process.stdout:
+        #     sys.stdout.write(str(line))
+
+        resource_gauge(args.name, log_dir)
+        DockerUtils.stop_container(args.name)
+        return
+    elif cprofile or perf:
+        command.extend(args.command)
+        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        return
+    else: #just run..
+        command.extend(args.command)
+        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        #for debug
+        # print(command)
+        # process = subprocess.run(command, check=True)
+        return
+    raise Exception('Should not come here')
+
+    # if args.command is not None:
+    #     if rusage_measure:
+    #         command.extend(['bash'])
+    #         logging.debug(f'command={command}')
+    #         process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    #         # pocketd.notify_start(args.name, args.service)
+
+    #         command = ['docker', 'exec', args.name]
+    #         # command.extend(['pwd'])
+    #         # command.extend(['ls', '-al'])
+    #         command.extend(args.command)
+    #         logging.debug(f'command={command}')
+    #         logging.debug(f'command={args.command}')
+    #         ## @@@@@@ end-to-end time
+    #         import shlex
+    #         tmp = ' '.join(command)
+    #         command = shlex.split(tmp, posix=True)
+
+    #         # process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+    #         process = subprocess.run(command, check=True)
+    #         logging.debug(f'stdout={process.stdout}')
+    #         logging.debug(f'stderr={process.stderr}')
+
+    #         # process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+    #         # logging.debug('here?')
+    #         # for c in iter(lambda: process.stdout.read(1), b''): 
+    #         #     sys.stdout.buffer.write(c)
+    #         #
+    #         #  for line in process.stdout:
+    #         #     sys.stdout.write(str(line))
+    #         logging.debug('here again?')
+    #         resource_gauge(args.name, log_dir)
+    #         DockerUtils.remove_container(args.name)
+    #         sys.exit()
+
+    #     else: # resource measure none
+    #         command.extend(args.command)
+    #         # print(command)
+    #         # print(' '.join(command))
+    #         if global_option.debug:
+    #             process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+    #             for line in process.stdout:
+    #                 sys.stdout.write(str(line))
+    #         else:
+    #             process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    # else:
+    #     logging.error('command must be provided!')
+    #     raise ValueError("No command was provided")
+
+    # # pocketd.notify_start(args.name, args.service)
+
+    # if rusage_measure:
+    #     command = ['docker', 'exec', args.name]
+    #     command.extend(args.command)
+    #     logging.debug(f'command={command}')
+    #     ## @@@@@@ end-to-end time
+    #     # process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    #     process = subprocess.run(command, check=True)
+    #     logging.debug(f'stdout={process.stdout}')
+    #     logging.debug(f'stderr={process.stderr}')
+
+    #     resource_gauge(args.name, log_dir)
+    #     DockerUtils.remove_container(args.name)
+
+def pocket_wait(args):
+    command = ['docker', 'wait']
+    command.append(args.name)
+
+    if global_option.debug:
+        process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+        for line in process.stdout:
+            sys.stdout.write(str(line))
+    else:
+        process = subprocess.run(command, check=True)
+
+def pocket_rusage_init(args):
+    # if global_option.measure:
+    #     ## /sys/fs/cgroup/cpu/docker/{id}/cpuacct.usage (rw) -- server: clean
+    #     ## /sys/fs/cgroup/memory/docker/{id}/memory.max_usage_in_bytes (rw) -- server: clean
+    #     ## /sys/fs/cgroup/memory/docker/{id}/memory.stat | grep pgfault, pgmajfault (r) -- server: keep
+    #     clean_service_max
+    id = DockerUtils.get_container_id(args.name)
+    # todo: move to daemone @@@@@
+    with open(f'/sys/fs/cgroup/cpu/docker/{id}/cpuacct.usage', 'w') as f:
+        f.write('0')
+
+    with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.max_usage_in_bytes', 'w') as f:
+        f.write('0')
+
+    page_fault, maj_page_fault = DockerUtils.get_page_fault(id)
+
+    with open(f'{args.dir}/tmp-{args.name}.log', 'w') as f:
+        f.write(f'pagefault_init={page_fault}\n')
+        f.write(f'major_pagefault_init={maj_page_fault}\n')
+
+    os.chmod(f'{args.dir}/tmp-{args.name}.log', 0o660)
+    os.chown(f'{args.dir}/tmp-{args.name}.log', 1000, 1011)
+
+def pocket_rusage_measure(args):
+    container_id = DockerUtils.get_container_id(args.name)
+    cpu_usage = DockerUtils.get_cpu_usage(container_id)
+    max_memory_usage = DockerUtils.get_max_mem_usage(container_id)
+    page_fault, maj_page_fault = DockerUtils.get_page_fault(container_id)
+
+    with open(f'{args.dir}/tmp-{args.name}.log', 'a+') as log_file:
+        log_file.write(f'cpu_usage={cpu_usage}')
+        log_file.write(f'max_memory_usage={max_memory_usage}')
+        log_file.write(f'pagefault={page_fault}\n')
+        log_file.write(f'major_pagefault={maj_page_fault}\n')
+
+def pocket_service_run(args):
+    # @@@@@
+    pass
+
+def pocket_service_kill(args):
+    service_name = args.name
+    DockerUtils.kill_docker_container(service_name, 'INT')
+
+    if args.rm:
+        DockerUtils.remove_container(service_name)
+
+def pocket_service_perf(args):
+    service_name = args.name
+    dir = args.dir
+    counters = args.counters
+
+    pid = DockerUtils.get_container_pid(service_name)
+    command = ['perf', 'stat']
+    command.extend(['-p', pid])
+    command.extend(['-e'])
+    command.extend(counters)
+    command.extend(['-o', f'{dir}/{service_name}.perf.log'])
+
+    # process = subprocess.run(command, check=True) #, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(process.pid)
+
+
+def build_run_parser(parser):
+    parser.add_argument('--rusage', type=str)
+    parser.add_argument('--cprofile', type=str)
+    parser.add_argument('--perf', type=str)
+    parser.add_argument('--measure-latency', type=str)
+
+    parser.add_argument('-d', action='store_true')
+    parser.add_argument('-b', '--binary', type=str, required=True, help='an image to run')
+    parser.add_argument('-t', '--name', type=str, required=True, help='a name of the application')
+    parser.add_argument('-s', '--service', type=str, required=True, help='a service to attach')
+    parser.add_argument('-n', '--network', type=str, default=None, help='a network namespace to attach')
+    parser.add_argument('-w', '--workdir', type=str, default=None, help='a network namespace to attach')
+    parser.add_argument('-m', '--memory', type=str, help='a command to run')
+    parser.add_argument('-c', '--cpus', type=str, help='a command to run')
+    parser.add_argument('-i', '--index', type=str, help='a command to run')
+    parser.add_argument('-e', '--env', action='append', type=str, default=None, help='environment variables')
+    parser.add_argument('-v', '--volume', action='append', type=str, default=None, help='volumes to attach')
+    parser.add_argument('command', type=str, nargs='+', default = None, help='a command to run')
+    parser.set_defaults(func=pocket_run)
+
+def build_service_parser(parser):
+    subparsers = parser.add_subparsers(title='subsubcmd')
+
+    service_run_parser = subparsers.add_parser('run')
+    service_run_parser.add_argument('-b', '--binary', type=str, required=True, help='an image to run')
+    service_run_parser.add_argument('-t', '--name', type=str, required=True, help='a name of the application')
+    service_run_parser.add_argument('-n', '--network', type=str, default=None, help='a network namespace to attach')
+    service_run_parser.add_argument('-w', '--workdir', type=str, default=None, help='a network namespace to attach')
+    service_run_parser.add_argument('-e', '--env', action='append', type=str, default=None, help='environment variables')
+    service_run_parser.add_argument('-v', '--volume', action='append', type=str, default=None, help='volumes to attach')
+    service_run_parser.add_argument('command', type=str, nargs='+', default = None, help='a command to run')
+    service_run_parser.set_defaults(func=pocket_service_run)
+
+    service_kill_parser = subparsers.add_parser('kill')
+    service_kill_parser.add_argument('name')
+    service_kill_parser.add_argument('--rm', action='store_true')
+    service_kill_parser.set_defaults(func=pocket_service_kill)
+
+    service_perf_parser = subparsers.add_parser('perf')
+    service_perf_parser.add_argument('name')
+    service_perf_parser.add_argument('--dir', '-d', required=True)
+    service_perf_parser.add_argument('--counters', required=True, nargs='*')
+    service_perf_parser.set_defaults(func=pocket_service_perf)
+
+def build_wait_parser(parser):
+    parser.add_argument('name', type=str, help='a name of an application to wait for termination')
+    parser.set_defaults(func=pocket_wait)
+
+def build_rusage_parser(parser):
+    subparsers = parser.add_subparsers(title='sub sub commands')
+
+    init_parser = subparsers.add_parser('init')
+    init_parser.add_argument('name', type=str)
+    init_parser.add_argument('--dir', type=str, required=True)
+    init_parser.set_defaults(func=pocket_rusage_init)
+
+    measure_parser = subparsers.add_parser('measure')
+    measure_parser.add_argument('name', type=str)
+    measure_parser.add_argument('--dir', type=str, required=True)
+    measure_parser.set_defaults(func=pocket_rusage_measure)
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG, format = '[%(asctime)s, %(lineno)d|POCKET] %(message)s')
+
+    parser = argparse.ArgumentParser(prog='Pocket',
+                usage='%(prog)s [options]',
+                description='''
+                Pocket CLI.''')
+
+    parser.add_argument('--debug', action='store_true', help='enable debug output')
+
+    global_option = GlobalOption(parser)
+
+    subparsers = parser.add_subparsers(title='subcommands',
+                    description='''
+                    supported subcommands''',
+                    help='subcommands')
+
+    # Subcommands
+    service_parser = subparsers.add_parser('service', help='run a service')
+    run_parser = subparsers.add_parser('run', help='run a pocketized app')
+    wait_parser = subparsers.add_parser('wait', help='wait until a specified app terminates')
+    rusage_parser = subparsers.add_parser('rusage', help='measure resource usage')
+
+    if len(sys.argv) == 1:
+        parser.parse_args(['--help'])
+        exit()
+
+    build_service_parser(service_parser)
+    build_run_parser(run_parser)
+    build_wait_parser(wait_parser)
+    build_rusage_parser(rusage_parser)
+
+
+    args = parser.parse_args()
+    logging.debug(f'args={args}')
+    args.func(args)

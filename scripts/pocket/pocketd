@@ -1,0 +1,544 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import socket
+import errno
+import signal
+# import multiprocessing
+from multiprocessing import Manager, Process, active_children, Queue
+# from queue import Queue
+from threading import Thread
+import subprocess
+import json
+import time
+import argparse
+from datetime import datetime
+import logging
+from abc import ABC,abstractmethod 
+from enum import Enum
+from time import sleep
+
+DIRPATH = os.path.dirname(os.path.realpath(__file__))
+# DIRPATH = '/'
+POCKETD_SOCKET_PATH = f'{DIRPATH}/tmp/pocketd.sock'
+POCKETD_SOCKET: socket.socket
+CONCURRENT_CONNECTIONS = 1
+MULTIPROC = True
+
+mgr = Manager()
+ResourceMigrated = mgr.dict()
+ResourceMoveRequestQueue = Queue()
+
+class GlobalOptions:
+    ratio = None
+    
+    @staticmethod
+    def init_configs(parsed_args):
+        GlobalOptions.ratio = parsed_args.ratio
+
+        logging.info(f'self.ratio={GlobalOptions.ratio}')
+
+class DockerUtils:
+    @staticmethod
+    def get_container_id(name: str):
+        container_id = subprocess.check_output(f'docker inspect --format=\'{{{{.Id}}}}\' {name}', shell=True, encoding='utf-8').replace('/','').strip()
+        return container_id
+
+    @staticmethod
+    def get_original_resource_limits(id: str):
+        memory_limit = subprocess.check_output(f'docker inspect --format=\'{{{{ .HostConfig.Memory }}}}\' {id}')
+        cpu_limit = float(subprocess.check_output(f'docker inspect --format=\'{{{{ .HostConfig.NanoCpus }}}}\' {id}'))/1000/1000000 # make nano to micro, micro to core.
+        return memory_limit, cpu_limit
+
+    @staticmethod
+    def get_memory_limit(id: str):
+        with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.limit_in_bytes', 'r') as limit_in_bytes:
+            memory_limit = limit_in_bytes.read().strip()
+        return memory_limit
+
+    @staticmethod
+    def get_memory_swap_limit(id: str):
+        with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.memsw.limit_in_bytes', 'r') as limit_in_bytes:
+            memory_limit = limit_in_bytes.read().strip()
+        return memory_limit
+
+    @staticmethod
+    def get_cpus_limit(id: str):
+        with open(f'/sys/fs/cgroup/cpu/docker/{id}/cpu.cfs_period_us', 'r') as cfs_period_us:
+            cpu_denominator = float(cfs_period_us.read().strip())
+        with open(f'/sys/fs/cgroup/cpu/docker/{id}/cpu.cfs_quota_us', 'r') as cfs_quota_us:
+            cpu_numerator = float(cfs_quota_us.read().strip())
+        return cpu_numerator/cpu_denominator
+
+    @staticmethod
+    def set_memory_limit(id: str, amount: str):
+        # logging.debug(f'{id[0:8]}, {amount}, {type(amount)}')
+        # try:
+        #     logging.debug(f'before={DockerUtils.get_memory_limit(id)}')
+        #     with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.limit_in_bytes', 'w') as limit_in_bytes:
+        #         limit_in_bytes.write(amount)
+        # except Exception as e:
+        #     logging.error(f'Exception={e}')
+        #     import traceback
+        #     traceback.print_exc()
+        # finally:
+        #     logging.debug(f'after={DockerUtils.get_memory_limit(id)}')
+        logging.debug(f'{id[0:8]}, {amount}, {type(amount)}')
+        logging.debug(f'before={DockerUtils.get_memory_limit(id)}')
+        logging.debug(f'before_sw={DockerUtils.get_memory_swap_limit(id)}')
+        with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.memsw.limit_in_bytes', 'w') as swap_limit_in_bytes:
+            swap_limit_in_bytes.write(str(int(amount)*2))
+        with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.limit_in_bytes', 'w') as limit_in_bytes:
+            limit_in_bytes.write(amount)
+        # try:
+        #     with open(f'/sys/fs/cgroup/memory/docker/{id}/memory.limit_in_bytes', 'w') as limit_in_bytes:
+        #         limit_in_bytes.write(amount)
+        #     ret = True
+        # except Exception as e:
+        #     import traceback
+        #     track = traceback.format_exc()
+        #     print(track)
+        #     ret = False
+
+        logging.debug(f'after={DockerUtils.get_memory_limit(id)}')
+        # return ret
+
+
+    @staticmethod
+    def set_cpus_limit(id: str, amount: float = None, numerator = None, denominator = 100000):
+        if numerator is None and amount is not None:
+            numerator = int(amount * denominator)
+            logging.debug(f'numerator={numerator}')
+        elif numerator is not None and amount is None:
+            pass
+        else:
+            raise Exception('Either amount or numerator needs to be provide, not none or both.')
+
+        with open(f'/sys/fs/cgroup/cpu/docker/{id}/cpu.cfs_period_us', 'w') as cfs_period_us:
+            cfs_period_us.write(str(denominator))
+        with open(f'/sys/fs/cgroup/cpu/docker/{id}/cpu.cfs_quota_us', 'w') as cfs_quota_us:
+            cfs_quota_us.write(str(int(numerator)))
+
+    @staticmethod
+    def set_memory(ratio, client_id, service_id, source_amount, dest_amount):
+        try:
+            if client_id != None:
+                DockerUtils.set_memory_limit(client_id, source_amount)
+        except:
+            request = ResourceMoveRequest(ResourceMoveRequest.Command.MEMMIGRATE,
+                                          service_id,
+                                          client_id,
+                                          source_amount,
+                                          dest_amount)
+            ResourceMoveRequestQueue.put(request)
+        else:
+            try:
+                DockerUtils.set_memory_limit(service_id, dest_amount)
+            except:
+                request = ResourceMoveRequest(ResourceMoveRequest.Command.MEMSET,
+                                              service_id,
+                                              client_id,
+                                              None,
+                                              dest_amount)
+                ResourceMoveRequestQueue.put(request)
+
+
+    @staticmethod
+    def migrate_memory(ratio: float, source_id: str, dest_id: str):
+        try:
+            server_old_memory_limit = float(DockerUtils.get_memory_limit(dest_id))
+            client_old_memory_limit = float(DockerUtils.get_memory_limit(source_id))
+        except FileNotFoundError:
+            logging.warning('No such file, just return')
+            output = subprocess.check_output('docker ps -a')
+            logging.error(output)
+            return
+
+        source_amount = str(int(client_old_memory_limit * (1 - ratio)))
+        dest_amount = str(int(server_old_memory_limit + ratio * client_old_memory_limit))
+
+        ResourceMigrated[dest_id][source_id]['mem'] = ratio * client_old_memory_limit
+
+        DockerUtils.set_memory_limit(source_id, source_amount)
+        DockerUtils.set_memory_limit(dest_id, dest_amount)
+        # try:
+        #     DockerUtils.set_memory_limit(source_id, source_amount)
+        # except OSError:
+        #     request = ResourceMoveRequest(ResourceMoveRequest.Command.MEMMIGRATE,
+        #                                   dest_id,
+        #                                   source_id,
+        #                                   source_amount,
+        #                                   dest_amount)
+        #     ResourceMoveRequestQueue.put(request)
+        #     logging.debug(DockerUtils.get_memory_limit(source_id))
+        #     logging.debug(source_amount)
+        #     # raise Exception('Misun')
+        # else:
+        #     try:
+        #         DockerUtils.set_memory_limit(dest_id, dest_amount)
+        #     except OSError:
+        #         request = ResourceMoveRequest(ResourceMoveRequest.Command.MEMSET,
+        #                                       dest_id,
+        #                                       source_id,
+        #                                       None,
+        #                                       dest_amount)
+        #         ResourceMoveRequestQueue.put(request)
+        #         logging.debug('=========='+DockerUtils.get_memory_limit(dest_id))
+        #         logging.debug('=========='+dest_amount)
+            
+        
+    @staticmethod
+    def migrate_cpu(ratio: float, source_id: str, dest_id: str):
+        server_old_cpu_limit = float(DockerUtils.get_cpus_limit(dest_id))
+        client_old_cpu_limit = float(DockerUtils.get_cpus_limit(source_id))
+
+        source_amount = float(client_old_cpu_limit * (1 - ratio))
+        dest_amount = float(server_old_cpu_limit + ratio * client_old_cpu_limit)
+        logging.debug(f'amount_to_add_cpu={ratio * client_old_cpu_limit}')
+
+        ResourceMigrated[dest_id][source_id]['cpu'] = ratio * client_old_cpu_limit
+
+        DockerUtils.set_cpus_limit(source_id, source_amount)
+        DockerUtils.set_cpus_limit(dest_id, dest_amount)
+        
+    @staticmethod
+    def migrate_resource(ratio: float, source_id: str, dest_id: str):
+        if dest_id not in ResourceMigrated:
+            ResourceMigrated[dest_id] = mgr.dict()
+        if source_id not in ResourceMigrated[dest_id]:
+            ResourceMigrated[dest_id][source_id] = mgr.dict()
+
+
+        DockerUtils.migrate_memory(ratio, source_id, dest_id)
+        DockerUtils.migrate_cpu(ratio, source_id, dest_id)
+        
+    @staticmethod
+    def recover_resource(ratio, service_id: str, client_id: str, amount): # todo: remove
+        server_old_memory_limit = float(DockerUtils.get_memory_limit(service_id))
+        server_old_cpu_limit = float(DockerUtils.get_cpus_limit(service_id))
+
+        amount_to_deduct_mem = ResourceMigrated[service_id][client_id]['mem']
+        amount_to_deduct_cpu = ResourceMigrated[service_id][client_id]['cpu']
+
+        del ResourceMigrated[service_id][client_id]
+
+        DockerUtils.set_cpus_limit(service_id, server_old_cpu_limit - amount_to_deduct_cpu)
+        DockerUtils.set_memory_limit(service_id, str(int(server_old_memory_limit - amount_to_deduct_mem)))
+
+
+class Sender(ABC):
+    @abstractmethod
+    def handle(self, command: str):
+        pass
+
+    def __init__(self, args_dict):
+        self.__dict__ = args_dict
+
+class BackEnd(Sender):
+    def __init__(self, args_dict):
+        super().__init__(args_dict)
+
+    def handle(self, command: str):
+        if command == 'resource':
+            self.resource()
+        else:
+            raise Exception(f'Invalid command {command}')
+
+    
+    def resource(self):
+        if self.subcommand == 'return':
+            logging.debug(f'attribute: {self.__dir__}')
+            logging.debug(f'client-euid={self.client_id}, server-euid={self.service_id}')
+            request = ResourceMoveRequest(ResourceMoveRequest.Command.GIVEBACK,
+                                          self.service_id,
+                                          self.client_id)
+            ResourceMoveRequestQueue.put(request)
+
+
+class CLI(Sender):
+    def __init__(self, args_dict):
+        super().__init__(args_dict)
+
+    def handle(self, command: str):
+        if command == 'run' or command == 'start':
+            self.run()
+        else:
+            raise Exception(f'Invalid command {command}')
+
+    
+    def run(self):
+        client_name = self.client
+        server_name = self.service
+        
+        client_euid = DockerUtils.get_container_id(client_name)
+        server_euid = DockerUtils.get_container_id(server_name)
+
+        logging.debug(f'client-euid={client_euid}, server-euid={server_euid}')
+
+        request = ResourceMoveRequest(ResourceMoveRequest.Command.MIGRATE,
+                                      server_euid,
+                                      client_euid)
+        ResourceMoveRequestQueue.put(request)
+
+class FrontEnd(Sender):
+    def __init__(self, args_dict):
+        super().__init__(args_dict)
+
+    def handle(self, command: str):
+        if command == 'set_resource': # todo: remove
+            self.set_resource()
+        elif command == 'migrate_resource':
+            self.migrate_resource()
+        elif command == 'return_resource':
+            self.return_resource()
+        else:
+            raise Exception(f'Invalid command {command}')
+
+    
+    def set_resource(self):
+        client_name = self.client
+        memory = self.mem
+        cfs_quota = self.cfs_quota
+
+        client_euid = DockerUtils.get_container_id(client_name)
+        logging.debug(f'client-euid={client_euid}')
+        DockerUtils.set_memory_limit(client_euid, str(int(memory)))
+        DockerUtils.set_cpus_limit(client_euid, numerator = cfs_quota)
+
+        
+    def migrate_resource(self):
+        client_name = self.client
+        client_euid = DockerUtils.get_container_id(client_name)
+
+        memory = self.mem
+        cpu = self.cpu
+        cpudenom = self.cpudenom
+        server_euid = self.be
+
+        client_euid = DockerUtils.get_container_id(client_name)
+        logging.debug(f'client-euid={client_euid}')
+        request = ResourceMoveRequest(ResourceMoveRequest.Command.MIGRATE,
+                                      server_euid,
+                                      client_euid)
+        ResourceMoveRequestQueue.put(request)
+
+    def return_resource(self):
+        client_name = self.client
+        client_euid = DockerUtils.get_container_id(client_name)
+
+        memory = self.mem
+        cpu = self.cpu
+        cpudenom = self.cpudenom
+        server_euid = self.be
+
+        client_euid = DockerUtils.get_container_id(client_name)
+        logging.debug(f'client-euid={client_euid}')
+        request = ResourceMoveRequest(ResourceMoveRequest.Command.SUB,
+                                      server_euid,
+                                      client_euid,
+                                      None,
+                                      (memory, cpu, cpudenom))
+        ResourceMoveRequestQueue.put(request)
+
+
+
+# moved to serivce @@@
+class ResourceMoveRequest:
+    class Command(Enum):
+        MIGRATE = 1
+        GIVEBACK = 2
+        ADD = 3
+        SUB = 4
+        MEMSET = 5
+        MEMMIGRATE = 6
+
+    def __init__(self, command: Command, service, client, source_amount=None, dest_amount=None):
+        self.command = command
+        self.service_id = service
+        self.client_id = client
+        self.source_amount = source_amount
+        self.dest_amount = dest_amount
+
+def sender_factory(sent_by: str, args_dict: dict):
+    if sent_by == 'BE':
+        sender = BackEnd(args_dict)
+    elif sent_by == 'CLI':
+        sender = CLI(args_dict)
+    elif sent_by == 'FE':
+        sender = FrontEnd(args_dict)
+    else:
+        raise Exception(f'No such sender = {sent_by}')
+    return sender
+
+def remove_remaining_sockets():
+    if os.path.exists(POCKETD_SOCKET_PATH):
+        os.unlink(POCKETD_SOCKET_PATH)
+
+def create_and_bind_sockets():
+    global POCKETD_SOCKET
+
+    try:
+        os.mkdir('tmp')
+    except FileExistsError as e:
+        logging.debug('directory "tmp" exists')
+        pass
+
+    POCKETD_SOCKET = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    POCKETD_SOCKET.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    POCKETD_SOCKET.bind(POCKETD_SOCKET_PATH)
+    os.chmod(POCKETD_SOCKET_PATH, 0o660)
+    os.chown(POCKETD_SOCKET_PATH, 1000, 1011) # 1000, 1011: cc uid, cc gid
+
+def is_target_done(pid: int):
+    try:
+        os.kill(pid, 0)
+    except OSError as err:
+        if err.errno == errno.ESRCH: # process does not exist, errno==3
+            return True
+    return False
+
+def wait_until_process_terminates(pid: int):
+    time.sleep(0.1)
+    while True:
+        if is_target_done(pid):
+            break
+
+def run_server():
+    POCKETD_SOCKET.listen(CONCURRENT_CONNECTIONS)
+    while True:
+        logging.info('[POCKETD] waiting for requests...')
+        
+        conn, _addr = POCKETD_SOCKET.accept()
+        # https://stackoverflow.com/questions/9644251/how-do-unix-domain-sockets-differentiate-between-multiple-clients
+
+        if MULTIPROC: 
+            # process = Process(target=handle_client, args=(conn, _addr))
+            process = Thread(target=handle_client, args=(conn, _addr))
+            process.daemon = True
+            process.start()
+        else:
+            handle_client(conn, _addr)
+
+
+def do_something(sent_by: str, command: str, args_dict: dict):
+    sender = sender_factory(sent_by, args_dict)
+    sender.handle(command)
+
+    return
+
+    timestamp = str(datetime.now()).replace(' ', '-')
+    p = subprocess.Popen(f'exec perf stat -e {",".join(events)} -p {pid} -o ./data/perf_stat_{container_name}_{timestamp}.log', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    wait_until_process_terminates(pid)
+
+    try:
+        stdout, stderr = p.communicate(timeout=1)
+    except:
+        p.send_signal(signal.SIGINT)
+        stdout, stderr = p.communicate(timeout=1)
+    
+    with open(f'./data/perf_stat_{container_name}_{timestamp}.log') as f:
+        while True:
+            line = f.readline().rstrip('\n')
+            logging.info(line)
+            if line == '':
+                break
+
+def parse_arguments(string: str):
+    args_dict = json.loads(string)
+    logging.debug(args_dict)
+    sender = args_dict.pop('sender')
+    command = args_dict.pop('command')
+
+    return sender, command, args_dict
+    
+    # if args_dict['type'] == 'open-proc-ns':
+    #     pass
+    # elif args_dict['type'] == 'closed-proc-ns':
+    #     container_id = args_dict['cid']
+    #     args_dict['pid'] = subprocess.check_output(f'docker inspect --format=\'{{{{.State.Pid}}}}\' {container_id}', shell=True, encoding='utf-8').strip()
+    #     args_dict['container_name'] = subprocess.check_output(f'docker inspect --format=\'{{{{.Name}}}}\' {container_id}', shell=True, encoding='utf-8').replace('/','').strip()
+    # return int(args_dict['pid']), args_dict['events'], args_dict['container_name'] 
+
+
+def handle_client(conn, addr):
+    logging.info('handle client!')
+    while True:
+        data_received = conn.recv(1024)
+        logging.debug(f'data_received={data_received}')
+        sender, command, args_dict = parse_arguments(data_received.decode('utf-8'))
+        logging.debug(f'sender={sender}, command={command}, args_dict={args_dict}')
+        do_something(sender, command, args_dict)
+        data_to_send = 'done'.encode('utf-8')
+        conn.send(data_to_send)
+        break
+    conn.close()
+
+memset_sleep = 0.001
+init_value = 0.001
+def handle_resource_move_request(request_queue):
+    logging.info('handle request!')
+    while True:
+        request = request_queue.get()
+        if   request.command == ResourceMoveRequest.Command.MIGRATE:
+            logging.info(f'MIGRATE  | from {request.client_id[0:8]} to {request.service_id[0:8]}')
+            DockerUtils.migrate_resource(GlobalOptions.ratio, request.client_id, request.service_id)
+            memset_sleep = init_value
+        elif request.command == ResourceMoveRequest.Command.MEMSET:
+            logging.info(f'MEMSET(delayed)  | to {request.service_id[0:8]}')
+            DockerUtils.set_memory(GlobalOptions.ratio, None, request.service_id, None, request.dest_amount)
+            sleep(memset_sleep)
+            # if memset_sleep < 2:
+            #     memset_sleep *= 2
+        elif request.command == ResourceMoveRequest.Command.MEMMIGRATE:
+            logging.info(f'MEMMIGRATE(delayed)  | from {request.client_id[0:8]} to {request.service_id[0:8]}')
+            DockerUtils.set_memory(GlobalOptions.ratio, request.client_id, request.service_id, request.source_amount, request.dest_amount)
+            memset_sleep = init_value
+        elif request.command == ResourceMoveRequest.Command.SUB:
+            logging.info(f'SUB  | from {request.client_id[0:8]} to {request.service_id[0:8]}')
+            DockerUtils.recover_resource(GlobalOptions.ratio, request.service_id, request.client_id, request.dest_amount)
+            memset_sleep = init_value
+        elif request.command == ResourceMoveRequest.Command.GIVEBACK:
+            logging.info(f'GIVEBACK | from {request.service_id[0:8]} to {request.client_id[0:8]}')
+            DockerUtils.recover_resource(request.service_id, request.client_id)
+            logging.debug(f'reamaining_cpu={DockerUtils.get_cpus_limit(request.service_id)}')
+            logging.debug(f'remaining_mem={DockerUtils.get_memory_limit(request.service_id)}')
+            memset_sleep = init_value
+        else:
+            logging.error(f'unimplemented command={request.command}')
+
+def finalize(signum, frame):
+    logging.info('finalizing workers...')
+    for process in active_children():
+        # logging.info("Shutting down process %r", process)
+        process.terminate()
+        process.join()
+    sys.exit()
+
+def run_other_workers():
+    t = Thread(target=handle_resource_move_request, args=(ResourceMoveRequestQueue,))
+    t.daemon = True
+    t.start()
+
+if __name__ == '__main__':
+    if os.geteuid() != 0:
+        exit('''
+        You need root privileges to run this script.
+        Please try again, this time using 'sudo'. Exiting.''')
+
+    signal.signal(signal.SIGINT, finalize)
+    logging.basicConfig(level=logging.DEBUG, \
+                        format='[%(asctime)s, %(lineno)d %(funcName)s | POCKETD] %(message)s')
+
+    parser = argparse.ArgumentParser(prog='pocketd',
+            usage='%(prog)s [options]',
+            description='''
+            Pocket Daemon.''')
+
+    parser.add_argument('-r', '--ratio', type=float, default=0.5, help='ratio to migrate to the service')
+    GlobalOptions.init_configs(parser.parse_args())
+
+    remove_remaining_sockets()
+    create_and_bind_sockets()
+    run_other_workers()
+    run_server()

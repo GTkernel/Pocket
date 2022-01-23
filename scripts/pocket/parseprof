@@ -1,0 +1,20 @@
+#!/usr/bin/python3
+import pstats
+import argparse
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file', '-f')
+
+    args = parser.parse_args()
+
+    raw_file = args.file
+    with open(raw_file + '.cumtime.log', 'w') as stream:
+        stats = pstats.Stats(raw_file, stream=stream)
+        stats.sort_stats('cumtime')
+        stats.print_stats()
+
+    with open(raw_file + '.tottime.log', 'w') as stream:
+        stats = pstats.Stats(raw_file, stream=stream)
+        stats.sort_stats('tottime')
+        stats.print_stats()
