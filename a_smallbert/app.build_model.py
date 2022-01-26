@@ -16,9 +16,6 @@ from official.nlp import optimization  # to create AdamW optimizer
 MODEL = None
 IMDB_DATASET = '/dataset/imdb/'
 # https://www.tensorflow.org/text/tutorials/classify_text_with_bert
-# # talking-heads_base
-# tfhub_handle_encoder = 'https://tfhub.dev/tensorflow/talkheads_ggelu_bert_en_base/1'
-# tfhub_handle_preprocess = 'https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3'
 # small_bert/bert_en_uncased_L-4_H-512_A-8
 tfhub_handle_encoder = 'https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-512_A-8/1'
 tfhub_handle_preprocess = 'https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3'
@@ -160,7 +157,6 @@ if __name__ == '__main__':
     print(f'Loss: {loss}')
     print(f'Accuracy: {accuracy}')
 
-    # dataset_name = 'imdb-bert_expert'
     dataset_name = 'imdb-small_bert'
     saved_model_path = '/models/imdb_prediction/{}_bert'.format(dataset_name.replace('/', '_'))
 

@@ -254,26 +254,26 @@ function help() {
 function build_docker_files() {
     # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
 
-    # docker rmi -f pocket-ssdmobilenetv2-monolithic-perf
-    # docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-ssdmobilenetv2-monolithic-perf
+    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
     docker rmi -f pocket-ssdmobilenetv2-monolithic-papi
     docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
-    # docker rmi -f pocket-ssdmobilenetv2-server
-    # docker image build -t pocket-ssdmobilenetv2-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
+    docker rmi -f pocket-ssdmobilenetv2-server
+    docker image build -t pocket-ssdmobilenetv2-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
 
-    # docker rmi -f pocket-ssdmobilenetv2-application
-    # docker image build -t pocket-ssdmobilenetv2-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
+    docker rmi -f pocket-ssdmobilenetv2-application
+    docker image build -t pocket-ssdmobilenetv2-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
 
-    # docker rmi -f pocket-ssdmobilenetv2-perf-application
-    # docker image build --no-cache -t pocket-ssdmobilenetv2-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
+    docker rmi -f pocket-ssdmobilenetv2-perf-application
+    docker image build --no-cache -t pocket-ssdmobilenetv2-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
 
-    # docker rmi -f pocket-ssdmobilenetv2-monolithic
-    # docker image build -t pocket-ssdmobilenetv2-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-ssdmobilenetv2-monolithic
+    docker image build -t pocket-ssdmobilenetv2-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    # docker rmi -f pocket-pypapi-server
-    # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
+    docker rmi -f pocket-pypapi-server
+    docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
 
     rm -rf $(ls dockerfiles | grep -v Dockerfile)
 }

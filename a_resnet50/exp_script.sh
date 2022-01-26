@@ -277,26 +277,26 @@ function help() {
 function build_docker_files() {
     # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
 
-    # docker rmi -f pocket-resnet50-monolithic-perf
-    # docker image build -t pocket-resnet50-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-resnet50-monolithic-perf
+    docker image build -t pocket-resnet50-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    # docker rmi -f pocket-resnet50-monolithic-papi
-    # docker image build -t pocket-resnet50-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
+    docker rmi -f pocket-resnet50-monolithic-papi
+    docker image build -t pocket-resnet50-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
-    # docker rmi -f pocket-resnet50-server
-    # docker image build -t pocket-resnet50-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
+    docker rmi -f pocket-resnet50-server
+    docker image build -t pocket-resnet50-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
 
     docker rmi -f pocket-resnet50-application
     docker image build -t pocket-resnet50-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
 
-    # docker rmi -f pocket-resnet50-perf-application
-    # docker image build --no-cache -t pocket-resnet50-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
+    docker rmi -f pocket-resnet50-perf-application
+    docker image build --no-cache -t pocket-resnet50-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
 
     docker rmi -f pocket-resnet50-monolithic
     docker image build -t pocket-resnet50-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    # docker rmi -f pocket-pypapi-server
-    # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
+    docker rmi -f pocket-pypapi-server
+    docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
 
     rm -rf $(ls dockerfiles | grep -v Dockerfile)
 }

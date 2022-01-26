@@ -255,17 +255,17 @@ function help() {
 function build_docker_files() {
     # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
 
-    # docker rmi -f pocket-mobilenet-monolithic-perf
-    # docker image build -t pocket-mobilenet-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-mobilenet-monolithic-perf
+    docker image build -t pocket-mobilenet-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    # docker rmi -f pocket-mobilenet-server
-    # docker image build -t pocket-mobilenet-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
+    docker rmi -f pocket-mobilenet-server
+    docker image build -t pocket-mobilenet-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
     
-    # docker rmi -f pocket-pypapi-server
-    # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
+    docker rmi -f pocket-pypapi-server
+    docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
 
-    # docker rmi -f pocket-mobilenet-monolithic-papi
-    # docker image build -t pocket-mobilenet-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
+    docker rmi -f pocket-mobilenet-monolithic-papi
+    docker image build -t pocket-mobilenet-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
     docker rmi -f pocket-mobilenet-application
     docker image build --no-cache -t pocket-mobilenet-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
@@ -274,8 +274,8 @@ function build_docker_files() {
     docker image build -t pocket-mobilenet-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
 
-    # docker rmi -f pocket-mobilenet-perf-application
-    # docker image build --no-cache -t pocket-mobilenet-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
+    docker rmi -f pocket-mobilenet-perf-application
+    docker image build --no-cache -t pocket-mobilenet-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
 }
 
 

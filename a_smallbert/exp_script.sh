@@ -261,8 +261,8 @@ function build_docker_files() {
     # docker rmi -f pocket-smallbert-monolithic-perf
     # docker image build --no-cache -t pocket-smallbert-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    docker rmi -f pocket-smallbert-monolithic-papi
-    docker image build --no-cache -t pocket-smallbert-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
+    # docker rmi -f pocket-smallbert-monolithic-papi
+    # docker image build --no-cache -t pocket-smallbert-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
     # docker rmi -f pocket-smallbert-server
     # docker image build -t pocket-smallbert-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
@@ -275,6 +275,7 @@ function build_docker_files() {
 
     # docker rmi -f pocket-smallbert-monolithic
     # docker image build -t pocket-smallbert-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    build_model
 
     # docker rmi -f pocket-pypapi-server
     # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
@@ -457,6 +458,30 @@ function measure_exec_breakdown() {
         local container_name=pocket-client-${index}
         docker logs $container_name 2>&1 | grep "fe_ratio"
     done
+}
+
+function build_model() {
+    local numinstances=$1
+    local container_list=()
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency-monolithic)
+    local rusage_logging_file=tmp-service.log
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+    docker run \
+        --name smallbert-monolithic-0000 \
+        --cpus=$(bc <<< "$(lscpu | grep '^CPU(s):' | awk '{print $2}')/2") \
+        --memory=$(bc <<< '1024 * 8')mb \
+        --volume=$(pwd)/data:/data \
+        --volume=$(pwd):/root/smallbert \
+        --volume=$(pwd)/../r_resources/models:/models \
+        --workdir=/root/smallbert \
+        pocket-smallbert-monolithic \
+        python3 app.build_model.py
+
+    # # For debugging
+    # docker logs -f talkingheads-monolithic-$(printf "%04d" $numinstances)
 }
 
 

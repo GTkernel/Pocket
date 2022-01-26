@@ -257,26 +257,26 @@ function help() {
 function build_docker_files() {
     # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
 
-    # docker rmi -f pocket-ssdresnet50v1-monolithic-perf
-    # docker image build --no-cache -t pocket-ssdresnet50v1-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-ssdresnet50v1-monolithic-perf
+    docker image build --no-cache -t pocket-ssdresnet50v1-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
     docker rmi -f pocket-ssdresnet50v1-monolithic-papi
     docker image build --no-cache -t pocket-ssdresnet50v1-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
-    # docker rmi -f pocket-ssdresnet50v1-server
-    # docker image build -t pocket-ssdresnet50v1-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
+    docker rmi -f pocket-ssdresnet50v1-server
+    docker image build -t pocket-ssdresnet50v1-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
 
-    # docker rmi -f pocket-ssdresnet50v1-application
-    # docker image build -t pocket-ssdresnet50v1-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
+    docker rmi -f pocket-ssdresnet50v1-application
+    docker image build -t pocket-ssdresnet50v1-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
 
-    # docker rmi -f pocket-ssdresnet50v1-perf-application
-    # docker image build --no-cache -t pocket-ssdresnet50v1-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
+    docker rmi -f pocket-ssdresnet50v1-perf-application
+    docker image build --no-cache -t pocket-ssdresnet50v1-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
 
-    # docker rmi -f pocket-ssdresnet50v1-monolithic
-    # docker image build -t pocket-ssdresnet50v1-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-ssdresnet50v1-monolithic
+    docker image build -t pocket-ssdresnet50v1-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    # docker rmi -f pocket-pypapi-server
-    # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
+    docker rmi -f pocket-pypapi-server
+    docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
 }
 
 function measure_latency() {

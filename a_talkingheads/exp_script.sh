@@ -260,8 +260,8 @@ function build_docker_files() {
     # docker rmi -f pocket-talkingheads-monolithic-perf
     # docker image build --no-cache -t pocket-talkingheads-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    docker rmi -f pocket-talkingheads-monolithic-papi
-    docker image build --no-cache -t pocket-talkingheads-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
+    # docker rmi -f pocket-talkingheads-monolithic-papi
+    # docker image build --no-cache -t pocket-talkingheads-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
     # docker rmi -f pocket-talkingheads-server
     # docker image build -t pocket-talkingheads-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
@@ -274,6 +274,7 @@ function build_docker_files() {
 
     # docker rmi -f pocket-talkingheads-monolithic
     # docker image build -t pocket-talkingheads-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    build_model
 
     # docker rmi -f pocket-pypapi-server
     # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
@@ -743,6 +744,32 @@ function measure_pf_monolithic() {
 }
 
 
+
+
+function build_model() {
+    local numinstances=$1
+    local container_list=()
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency-monolithic)
+    local rusage_logging_file=tmp-service.log
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+    docker run \
+        --name talkingheads-monolithic-0000 \
+        --cpus=$(bc <<< "$(lscpu | grep '^CPU(s):' | awk '{print $2}')/2") \
+        --memory=$(bc <<< '1024 * 24')mb \
+        --volume=$(pwd)/data:/data \
+        --volume=$(pwd):/root/talkingheads \
+        --volume=$(pwd)/../r_resources/models:/models \
+        --workdir=/root/talkingheads \
+        pocket-talkingheads-monolithic \
+        python3 app.build_model.py
+
+
+    # # For debugging
+    # docker logs -f talkingheads-monolithic-$(printf "%04d" $numinstances)
+}
 
 
 function measure_latency_monolithic() {
