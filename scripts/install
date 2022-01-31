@@ -13,11 +13,14 @@ function main() {
     fi
 
     case $COMMAND in
-        install-prerequisite)
+        prerequisite)
             ./install-prerequisite.sh
             ;;
-        build-pockets)
-            ./build-pockets.sh
+        hello-world)
+            ./build-pockets.sh --hello-world
+            ;;
+        all-pockets)
+            ./build-pockets.sh --all
             ;;
     esac
 }

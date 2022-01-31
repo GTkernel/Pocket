@@ -257,27 +257,27 @@ function help() {
 function build_docker_files() {
     # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
 
-    # docker rmi -f pocket-talkingheads-monolithic-perf
-    # docker image build --no-cache -t pocket-talkingheads-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-talkingheads-monolithic-perf
+    docker image build --no-cache -t pocket-talkingheads-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
 
-    # docker rmi -f pocket-talkingheads-monolithic-papi
-    # docker image build --no-cache -t pocket-talkingheads-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
+    docker rmi -f pocket-talkingheads-monolithic-papi
+    docker image build --no-cache -t pocket-talkingheads-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
 
-    # docker rmi -f pocket-talkingheads-server
-    # docker image build -t pocket-talkingheads-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
+    docker rmi -f pocket-talkingheads-server
+    docker image build -t pocket-talkingheads-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
 
-    # docker rmi -f pocket-talkingheads-application
-    # docker image build -t pocket-talkingheads-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
+    docker rmi -f pocket-talkingheads-application
+    docker image build -t pocket-talkingheads-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
 
-    # docker rmi -f pocket-talkingheads-perf-application
-    # docker image build --no-cache -t pocket-talkingheads-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
+    docker rmi -f pocket-talkingheads-perf-application
+    docker image build --no-cache -t pocket-talkingheads-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
 
-    # docker rmi -f pocket-talkingheads-monolithic
-    # docker image build -t pocket-talkingheads-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker rmi -f pocket-talkingheads-monolithic
+    docker image build -t pocket-talkingheads-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
     build_model
 
-    # docker rmi -f pocket-pypapi-server
-    # docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
+    docker rmi -f pocket-pypapi-server
+    docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
 }
 
 function measure_latency() {
