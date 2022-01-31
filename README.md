@@ -39,7 +39,7 @@ cd scripts
 ```
 ### @Todo: Launch All Models 
 * Experiments can be replicated with the command `./launch`.
-* Each of these commands executes a full set of experiments and takes several hours to complete, so you may want to use this command with some flags such that you can more focus on your interest of evaluation/assesement.
+* Each of these subcommands executes a full set of experiments and takes several hours to complete, so you may want to use this command with some flags such that you can more focus on your interest of evaluation/assesement.
 ```
 ./launch exec-breakdown
 ./launch hw-counters
@@ -77,7 +77,7 @@ docker run \
 ```
 * Then you need to also run `pocket`ized application—frontend, with the something like the command below. This process is wrapped by `pocket` CLI.
 ```
-./pocket \
+pocket \
     run \
         --measure-latency $dir \
         -d \
