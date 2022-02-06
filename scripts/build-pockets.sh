@@ -9,12 +9,12 @@ function main() {
         exit 1
     fi
 
-    # build_image a_mobilenetv2
-    # build_image a_resnet50
-    # build_image a_smallbert
+    build_image a_mobilenetv2
+    build_image a_resnet50
+    build_image a_smallbert
     build_image a_talkingheads
-    # build_image a_ssdmobilenetv2_320x320
-    # build_image a_ssdresnet50v1_640x640
+    build_image a_ssdmobilenetv2_320x320
+    build_image a_ssdresnet50v1_640x640
 }
 
 function build_image() {
