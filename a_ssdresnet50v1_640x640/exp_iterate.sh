@@ -7,11 +7,7 @@ sudo chown -R $me data
 sudo chgrp -R $me data
 
 
-bash exp_script.sh latency -n=9 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
-bash exp_script.sh latency -n=9 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
-bash exp_script.sh latency -n=9 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
-bash exp_script.sh latency -n=9 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
-bash exp_script.sh latency -n=9 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
+bash exp_script.sh latency-mon -n=1 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
 
 exit
 echo '>>>>'  pocket

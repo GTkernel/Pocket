@@ -2,11 +2,34 @@
 
 
 function main() {
-    install_docker
+    GPU=0
 
-    ask_reboot
+
+    parse_arg "${@:1}"
+
+    if [[ "$GPU" = "0" ]]; then
+        install_docker
+        ask_reboot
+    else
+        # install_docker
+        install_nvidia_driver
+        install_nvidia_docker
+        ask_reboot
+    fi
+
 }
 
+function parse_arg() {
+    for arg in $@; do
+        case $arg in
+            --gpu=*)
+                GPU=${arg#*=}
+                ;;
+        esac
+    done
+}
+
+# reboot required
 function install_docker() {
     sudo apt-get update -y
 
@@ -26,6 +49,24 @@ function install_docker() {
 
     sudo systemctl enable docker.service
     sudo systemctl enable containerd.service
+}
+
+# reboot required
+function install_nvidia_driver() {
+    sudo apt-get install linux-headers-$(uname -r) -y
+    sudo apt install ubuntu-drivers-common
+    ubuntu-drivers devices
+    sudo ubuntu-drivers autoinstall
+}
+
+function install_nvidia_docker() {
+    distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
+        && curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add - \
+        && curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+    sudo apt-get update -y
+    sudo apt-get install nvidia-docker2 -y
+    sudo systemctl restart docker
+    # docker run --gpus all -it --rm tensorflow/tensorflow:latest-gpu    nvidia-smi
 }
 
 

@@ -5,16 +5,18 @@ function main() {
     PWD=$(pwd)
     SCRIPTDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
     COMMAND=$1
-
+    GPU=0
 
     if [[ "$PWD" != "$SCRIPTDIR" ]]; then
         print_error "This script needs to be launched in its own root directory!\nexit"
         exit 1
     fi
 
+    parse_arg "${@:2}"
+
     case $COMMAND in
         prerequisite)
-            ./install-prerequisite.sh
+            ./install-prerequisite.sh --gpu=${GPU}
             ;;
         hello-world)
             ./build-pockets.sh --hello-world
@@ -23,6 +25,18 @@ function main() {
             ./build-pockets.sh --all
             ;;
     esac
+}
+
+function parse_arg() {
+    for arg in $@; do
+        case $arg in
+            --gpu=*)
+                GPU=${arg#*=}
+                ;;
+            *)
+                ;;
+        esac
+    done
 }
 
 _BOLD="\e[1m"
