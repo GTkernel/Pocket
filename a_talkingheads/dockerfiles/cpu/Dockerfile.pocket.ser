@@ -5,7 +5,8 @@ RUN apt-get update -y --fix-missing && \
     apt-get install -y libgl1-mesa-dev && \
     apt install -y libsm6 libxrender1 libfontconfig1  && \
     pip3 install opencv-python==4.1.0.25 && \
-    python3 -m pip install opencv-contrib-python && \
+    python3 -m pip install opencv-contrib-python==4.1.0.25 && \
+    python3 -m pip install opencv-python-headless==4.1.0.25 && \
     apt install -y git wget time && \
     python3 -m pip install numpy && \
     python3 -m pip install --upgrade pip && \

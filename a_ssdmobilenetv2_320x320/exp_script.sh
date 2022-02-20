@@ -14,7 +14,7 @@ SERVER_IP=111.222.3.26
 
 PERF_COUNTERS=cpu-cycles,page-faults,minor-faults,major-faults,cache-misses,LLC-load-misses,LLC-store-misses,dTLB-load-misses,iTLB-load-misses,instructions
 
-
+DEVICE=cpu
 # POCKET_MEM_POLICY='func,ratio,0.5'      # (func/conn, ratio/minimum/none)
 # POCKET_CPU_POLICY='func,ratio,0.5'      #
 POCKET_MEM_POLICY='func,ratio,0.8'      # (func/conn, ratio/minimum/none)
@@ -50,6 +50,12 @@ function parse_arg(){
                 ;;
             --event=*)
                 EVENTSET="${arg#*=}"
+                ;;
+            --device=*)
+                DEVICE="${arg#*=}"
+                if [[ "$DEVICE" = "gpu" ]]; then
+                    GPUS="--gpus 0"
+                fi
                 ;;
             --policy=*)
                 POLICY_NO="${arg#*=}"
@@ -114,7 +120,7 @@ function run_server_basic() {
     local server_image=$3
     docker run \
         -d \
-        --privileged \
+        --privileged "${GPUS}" \
         --name=$server_container_name \
         --workdir='/root' \
         --env YOLO_SERVER=1 \
@@ -138,7 +144,7 @@ function run_server_papi() {
     local server_image=$3
     docker run \
         -d \
-        --privileged \
+        --privileged "${GPUS}" \
         --name=$server_container_name \
         --workdir='/root' \
         --env YOLO_SERVER=1 \
@@ -164,7 +170,7 @@ function run_server_pf() {
     local server_image=$3
     docker run \
         -d \
-        --privileged \
+        --privileged "${GPUS}" \
         --name=$server_container_name \
         --workdir='/root' \
         --env YOLO_SERVER=1 \
@@ -191,7 +197,7 @@ function run_server_cProfile() {
     local numinstances=$5
     docker run \
         -d \
-        --privileged \
+        --privileged "${GPUS}" \
         --name=$server_container_name \
         --workdir='/root' \
         --env YOLO_SERVER=1 \
@@ -214,7 +220,7 @@ function run_server_perf() {
     local server_image=$3
     docker run \
         -d \
-        --privileged \
+        --privileged "${GPUS}" \
         --name=$server_container_name \
         --workdir='/root' \
         --env YOLO_SERVER=1 \
@@ -255,27 +261,27 @@ function build_docker_files() {
     # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
 
     docker rmi -f pocket-ssdmobilenetv2-monolithic-perf
-    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-perf -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-perf -f dockerfiles/${DEVICE}/Dockerfile.monolithic.perf dockerfiles/${DEVICE}
 
     docker rmi -f pocket-ssdmobilenetv2-monolithic-papi
-    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-papi -f dockerfiles/Dockerfile.monolithic.papi dockerfiles
+    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-papi -f dockerfiles/${DEVICE}/Dockerfile.monolithic.papi dockerfiles/${DEVICE}
 
     docker rmi -f pocket-ssdmobilenetv2-server
-    docker image build -t pocket-ssdmobilenetv2-server -f dockerfiles/Dockerfile.pocket.ser dockerfiles
+    docker image build -t pocket-ssdmobilenetv2-server -f dockerfiles/${DEVICE}/Dockerfile.pocket.ser dockerfiles/${DEVICE}
 
     docker rmi -f pocket-ssdmobilenetv2-application
-    docker image build -t pocket-ssdmobilenetv2-application -f dockerfiles/Dockerfile.pocket.app dockerfiles
+    docker image build -t pocket-ssdmobilenetv2-application -f dockerfiles/${DEVICE}/Dockerfile.pocket.app dockerfiles/${DEVICE}
 
     docker rmi -f pocket-ssdmobilenetv2-perf-application
-    docker image build --no-cache -t pocket-ssdmobilenetv2-perf-application -f dockerfiles/Dockerfile.pocket.perf.app dockerfiles
+    docker image build --no-cache -t pocket-ssdmobilenetv2-perf-application -f dockerfiles/${DEVICE}/Dockerfile.pocket.perf.app dockerfiles/${DEVICE}
 
     docker rmi -f pocket-ssdmobilenetv2-monolithic
-    docker image build -t pocket-ssdmobilenetv2-monolithic -f dockerfiles/Dockerfile.monolithic.perf dockerfiles
+    docker image build -t pocket-ssdmobilenetv2-monolithic -f dockerfiles/${DEVICE}/Dockerfile.monolithic.perf dockerfiles/${DEVICE}
 
     docker rmi -f pocket-pypapi-server
-    docker image build -t pocket-pypapi-server -f dockerfiles/Dockerfile.pocket.papi.ser dockerfiles
+    docker image build -t pocket-pypapi-server -f dockerfiles/${DEVICE}/Dockerfile.pocket.papi.ser dockerfiles/${DEVICE}
 
-    rm -rf $(ls dockerfiles | grep -v Dockerfile)
+    rm -rf $(ls dockerfiles/${DEVICE} | grep -v Dockerfile)
 }
 
 

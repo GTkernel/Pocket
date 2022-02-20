@@ -131,3 +131,6 @@ dmypy.json
 
 # Coco image set
 r_resources/coco
+
+# Logs
+a_*/data
