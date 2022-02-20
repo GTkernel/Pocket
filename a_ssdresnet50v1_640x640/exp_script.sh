@@ -290,7 +290,8 @@ function measure_latency() {
     init
 
     run_server_basic $server_container_name $SERVER_IP $server_image
-    sleep 3
+    # sleep 3
+    sleep 7
 
     ../scripts/pocket/pocket \
         run \
@@ -305,7 +306,7 @@ function measure_latency() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -315,7 +316,8 @@ function measure_latency() {
             -- python3 app.pocket.py
 
     sleep 5
-
+    ../scripts/pocket/pocket \
+        wait pocket-client-0000
 
     for i in $(seq 1 $numinstances); do
         local index=$(printf "%04d" $i)
@@ -334,7 +336,7 @@ function measure_latency() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -387,7 +389,7 @@ function measure_exec_breakdown() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -397,6 +399,8 @@ function measure_exec_breakdown() {
             -- python3 app.pocket.execbd.py
 
     sleep 5
+	../scripts/pocket/pocket \
+        wait pocket-client-0000
 
 
     for i in $(seq 1 $numinstances); do
@@ -416,7 +420,7 @@ function measure_exec_breakdown() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -477,12 +481,13 @@ function measure_latency_monolithic() {
     # 1024 + 1024 = 2048mb
 
     docker run \
+        --gpus 1 \
         --name ssdresnet50v1-monolithic-0000 \
         --cpus=2 \
-        --memory=$(bc <<< '1024 * 1.3')mb \
+        --memory=$(bc <<< '1024 * 1.3 + 1024*0.7 + 0.3*1024')mb \
         --volume=$(pwd)/data:/data \
         --volume=$(pwd):/root/ssdresnet50v1 \
-        --volume=/home/cc/COCO/val2017:/root/coco2017 \
+        --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
         --workdir=/root/ssdresnet50v1 \
         pocket-ssdresnet50v1-monolithic \
         python3 app.monolithic.py
@@ -497,12 +502,13 @@ function measure_latency_monolithic() {
         docker \
             run \
                 -d \
+                --gpus 1 \
                 --name ${container_name} \
                 --cpus=2 \
-                --memory=$(bc <<< '1024 * 1.3')mb \
+                --memory=$(bc <<< '1024 * 1.3 + 1024 * 1.0')mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdresnet50v1 \
                 pocket-ssdresnet50v1-monolithic \
                 python3 app.monolithic.py
@@ -571,7 +577,7 @@ function measure_papi() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -581,6 +587,8 @@ function measure_papi() {
             -- python3 app.pocket.py
 
     sleep 5
+	../scripts/pocket/pocket \
+        wait pocket-client-0000
 
 
     for i in $(seq 1 $numinstances); do
@@ -600,7 +608,7 @@ function measure_papi() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -650,7 +658,7 @@ function measure_pf() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -660,6 +668,8 @@ function measure_pf() {
             -- python3 app.pocket.py
 
     sleep 5
+	../scripts/pocket/pocket \
+        wait pocket-client-0000
 
 
     for i in $(seq 1 $numinstances); do
@@ -679,7 +689,7 @@ function measure_pf() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -721,7 +731,7 @@ function measure_papi_monolithic() {
                 # --memory=$(bc <<< '1024 * 1.3')mb \
     #     --volume=$(pwd)/data:/data \
     #     --volume=$(pwd):/root/ssdresnet50v1 \
-    #     --volume=/home/cc/COCO/val2017:/root/coco2017 \
+    #     --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/ssdresnet50v1 \
     #     --cap-add CAP_SYS_ADMIN \
     #     --volume=$(pwd)/../tfrpc/server/papi:/papi \
@@ -742,7 +752,7 @@ function measure_papi_monolithic() {
                 --memory=$(bc <<< '1024 * 1.3')mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdresnet50v1 \
                 --cap-add CAP_SYS_ADMIN \
                 --volume=$(pwd)/../tfrpc/server/papi:/papi \
@@ -785,7 +795,7 @@ function measure_pf_monolithic() {
                 # --memory=$(bc <<< '1024 * 1.3')mb \
     #     --volume=$(pwd)/data:/data \
     #     --volume=$(pwd):/root/ssdresnet50v1 \
-    #     --volume=/home/cc/COCO/val2017:/root/coco2017 \
+    #     --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/ssdresnet50v1 \
     #     --env NUM=$NUMINSTANCES \
     #     pocket-ssdresnet50v1-monolithic-papi \
@@ -804,7 +814,7 @@ function measure_pf_monolithic() {
                 --memory=$(bc <<< '1024 * 1.3')mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdresnet50v1 \
                 --env NUM=$NUMINSTANCES \
                 pocket-ssdresnet50v1-monolithic-papi \
@@ -852,7 +862,7 @@ function measure_rusage_monolithic() {
             --memory=512mb \
             --volume=$(pwd)/data:/data \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --workdir=/root/ssdresnet50v1 \
             pocket-ssdresnet50v1-monolithic \
             bash
@@ -880,7 +890,7 @@ function measure_rusage_monolithic() {
                 --memory=512mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdresnet50v1 \
                 pocket-ssdresnet50v1-monolithic \
                 bash
@@ -937,7 +947,7 @@ function measure_perf_monolithic() {
             --memory=512mb \
             --volume=$(pwd)/data:/data \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --cap-add SYS_ADMIN \
             --cap-add IPC_LOCK \
             --workdir=/root/ssdresnet50v1 \
@@ -960,7 +970,7 @@ function measure_perf_monolithic() {
                 --memory=512mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --cap-add SYS_ADMIN \
                 --cap-add IPC_LOCK \
                 --workdir=/root/ssdresnet50v1 \
@@ -1011,7 +1021,7 @@ function measure_rusage() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1046,7 +1056,7 @@ function measure_rusage() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -1096,7 +1106,7 @@ function measure_cprofile() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1126,7 +1136,7 @@ function measure_cprofile() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -1192,7 +1202,7 @@ function measure_perf() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/ssdresnet50v1 \
-            --volume=/home/cc/COCO/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1200,8 +1210,6 @@ function measure_perf() {
             -- perf stat -e ${PERF_COUNTERS} -o /data/$TIMESTAMP-${numinstances}-perf/pocket-client-0000.perf.log python3.6 app.pocket.py
 
     sleep 5
-
-
     ../scripts/pocket/pocket \
         wait \
         pocket-client-0000
@@ -1229,7 +1237,7 @@ function measure_perf() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/ssdresnet50v1 \
-                --volume=/home/cc/COCO/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \

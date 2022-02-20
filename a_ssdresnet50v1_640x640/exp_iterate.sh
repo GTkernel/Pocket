@@ -7,9 +7,6 @@ sudo chown -R $me data
 sudo chgrp -R $me data
 
 
-bash exp_script.sh latency-mon -n=1 --policy=1 2>&1 |  grep 'inference_time\|>>>>>>>' | cut -d"=" -f2
-
-exit
 echo '>>>>'  pocket
 echo
 for p in $(seq 1 3); do

@@ -160,7 +160,7 @@ function run_pocket_app_fixed() {
     #         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
     #         --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
     #         --volume=$(pwd):/root/mobilenet \
-    #         --volume=/home/cc/COCO/val2017:/root/coco2017 \
+    #         --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -277,7 +277,7 @@ function run_pocket_app() {
     #         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
     #         --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
     #         --volume=$(pwd):/root/mobilenet \
-    #         --volume=/home/cc/COCO/val2017:/root/coco2017 \
+    #         --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env POCKET_MEM_POLICY=func,ratio,0.8 \

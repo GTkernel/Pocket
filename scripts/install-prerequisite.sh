@@ -3,19 +3,35 @@
 
 function main() {
     GPU=0
+    SCRIPT_DIR="$(cd `dirname $0` > /dev/null && pwd -P)"
 
+    if [ -z "$BASH" ]; then 
+        print_error "Please run this script $0 with bash"
+        exit 1
+    fi
+
+    if [[ "$(id -u)" -ne 0 ]]; then
+        print_error "Please run this script with root privilege."
+        exit 1
+    fi
+
+    if [[ "$SCRIPT_DIR" != "$(pwd -P)" ]]; then
+        print_error "Please run this script in $(dirname $0)."
+        exit 1
+    fi
 
     parse_arg "${@:1}"
-
-    if [[ "$GPU" = "0" ]]; then
-        install_docker
-        ask_reboot
-    else
-        # install_docker
-        install_nvidia_driver
-        install_nvidia_docker
-        ask_reboot
-    fi
+    
+    # download_coco_imageset
+    # install_docker
+    # if [[ "$GPU" = "0" ]]; then
+    #     :
+    # else
+    #     install_nvidia_driver
+    #     install_nvidia_docker
+    # fi
+    update_grub
+    # ask_reboot
 
 }
 
@@ -29,44 +45,57 @@ function parse_arg() {
     done
 }
 
+function download_coco_imageset() {
+    wget http://images.cocodataset.org/zips/val2017.zip
+    mkdir -p ../r_resources/coco
+    unzip val2017.zip -d ../r_resources/coco
+    rm -f val2017.zip
+}
+
 # reboot required
 function install_docker() {
-    sudo apt-get update -y
+    apt-get update -y
 
     # Download dependencies
-    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+    apt-get install -y apt-transport-https ca-certificates curl software-properties-common
     # Add Docker's GPG Key
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
     # Install the Docker Repository
-    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs)  stable" 
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs)  stable" 
     
-    sudo apt-get update
-    sudo apt-get install -y docker-ce=5:20.10.8~3-0~ubuntu-bionic
+    apt-get update
+    apt-get install -y docker-ce=5:20.10.8~3-0~ubuntu-bionic
 
     # Post-installation steps
-    sudo groupadd docker
-    sudo usermod -aG docker $USER
+    groupadd docker
+    usermod -aG docker $USER
 
-    sudo systemctl enable docker.service
-    sudo systemctl enable containerd.service
+    systemctl enable docker.service
+    systemctl enable containerd.service
 }
 
 # reboot required
 function install_nvidia_driver() {
-    sudo apt-get install linux-headers-$(uname -r) -y
-    sudo apt install ubuntu-drivers-common
+    apt-get install linux-headers-$(uname -r) -y
+    apt install ubuntu-drivers-common
     ubuntu-drivers devices
-    sudo ubuntu-drivers autoinstall
+    ubuntu-drivers autoinstall
 }
 
 function install_nvidia_docker() {
     distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
-        && curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add - \
-        && curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-    sudo apt-get update -y
-    sudo apt-get install nvidia-docker2 -y
-    sudo systemctl restart docker
+        && curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add - \
+        && curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list
+    apt-get update -y
+    apt-get install nvidia-docker2 -y
+    systemctl restart docker
     # docker run --gpus all -it --rm tensorflow/tensorflow:latest-gpu    nvidia-smi
+}
+
+function update_grub() {
+    sed -i 's/cgroup_enable=memory swapaccount=1//' /etc/default/grub
+    sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& cgroup_enable=memory swapaccount=1/' /etc/default/grub
+    update-grub
 }
 
 
@@ -75,7 +104,7 @@ function ask_reboot() {
     select yn in "Yes" "No"; do
         case $yn in
              Yes) 
-                sudo reboot
+                reboot
                 exit
                 ;;
              No) 
