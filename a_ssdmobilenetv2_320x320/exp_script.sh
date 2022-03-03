@@ -118,7 +118,7 @@ function run_server_basic() {
     local server_container_name=$1
     local server_ip=$2
     local server_image=$3
-    docker run \
+    eval docker run \
         -d \
         --privileged "${GPUS}" \
         --name=$server_container_name \
@@ -126,8 +126,8 @@ function run_server_basic() {
         --env YOLO_SERVER=1 \
         --ip=$server_ip \
         --ipc=shareable \
-        --cpus=1.0 \
-        --memory=$(bc <<< '1024 * 2')mb \
+        --cpus=$POCKET_BE_CPU \
+        --memory=$POCKET_FE_MEM \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -142,7 +142,7 @@ function run_server_papi() {
     local server_container_name=$1
     local server_ip=$2
     local server_image=$3
-    docker run \
+    eval docker run \
         -d \
         --privileged "${GPUS}" \
         --name=$server_container_name \
@@ -150,8 +150,8 @@ function run_server_papi() {
         --env YOLO_SERVER=1 \
         --ip=$server_ip \
         --ipc=shareable \
-        --cpus=1.0 \
-        --memory=$(bc <<< '1024 * 2')mb \
+        --cpus=$POCKET_BE_CPU \
+        --memory=$POCKET_FE_MEM \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -168,7 +168,7 @@ function run_server_pf() {
     local server_container_name=$1
     local server_ip=$2
     local server_image=$3
-    docker run \
+    eval docker run \
         -d \
         --privileged "${GPUS}" \
         --name=$server_container_name \
@@ -176,8 +176,8 @@ function run_server_pf() {
         --env YOLO_SERVER=1 \
         --ip=$server_ip \
         --ipc=shareable \
-        --cpus=1.0 \
-        --memory=$(bc <<< '1024 * 2')mb \
+        --cpus=$POCKET_BE_CPU \
+        --memory=$POCKET_FE_MEM \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -195,7 +195,7 @@ function run_server_cProfile() {
     local server_image=$3
     local timestamp=$4
     local numinstances=$5
-    docker run \
+    eval docker run \
         -d \
         --privileged "${GPUS}" \
         --name=$server_container_name \
@@ -218,7 +218,7 @@ function run_server_perf() {
     local server_container_name=$1
     local server_ip=$2
     local server_image=$3
-    docker run \
+    eval docker run \
         -d \
         --privileged "${GPUS}" \
         --name=$server_container_name \
@@ -240,6 +240,24 @@ function run_server_perf() {
 function init() {
     docker rm -f $(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}') > /dev/null 2>&1
     docker container prune --force
+
+    if [[ "$DEVICE" = "cpu" ]]; then
+        POCKET_FE_CPU=1.3
+        POCKET_FE_MEM=512mb
+        POCKET_BE_CPU=1
+        POCKET_BE_MEM=$(bc <<< '1024 * 0.9')mb
+        # POCKET_BE_MEM=$(bc <<< '1024 * 2')mb
+        MONOLITHIC_CPU=1.5
+        MONOLITHIC_MEM=$(bc <<< '1024 * 0.9')mb
+    elif [[ "$DEVICE" = "gpu" ]]; then
+        POCKET_FE_CPU=1.3
+        POCKET_FE_MEM=512mb
+        POCKET_BE_CPU=1
+        POCKET_BE_MEM=$(bc <<< '1024 * 2.2')mb
+        MONOLITHIC_CPU=1.5
+        MONOLITHIC_MEM=$(bc <<< '1024 * 2.2')mb
+    fi
+
     # docker network rm $NETWORK
     # docker network create --driver=bridge --subnet=$SUBNETMASK $NETWORK
     # if [[ "$(ps aux | grep "pocketd" | grep "root" | wc -l)" -lt "1" ]]; then
@@ -258,28 +276,28 @@ function help() {
 }
 
 function build_docker_files() {
-    # docker rmi -f $(docker image ls | grep "grpc_exp_shmem_server\|grpc_exp_shmem_client\|pocket" | awk '{print $1}')
+    cp -R ../r_resources/obj_det_sample_img dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-ssdmobilenetv2-monolithic-perf
-    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-perf -f dockerfiles/${DEVICE}/Dockerfile.monolithic.perf dockerfiles/${DEVICE}
+    docker rmi -f pocket-ssdmobilenetv2-${DEVICE}-monolithic-perf
+    docker image build --no-cache -t pocket-ssdmobilenetv2-${DEVICE}-monolithic-perf -f dockerfiles/${DEVICE}/Dockerfile.monolithic.perf dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-ssdmobilenetv2-monolithic-papi
-    docker image build --no-cache -t pocket-ssdmobilenetv2-monolithic-papi -f dockerfiles/${DEVICE}/Dockerfile.monolithic.papi dockerfiles/${DEVICE}
+    docker rmi -f pocket-ssdmobilenetv2-${DEVICE}-monolithic-papi
+    docker image build --no-cache -t pocket-ssdmobilenetv2-${DEVICE}-monolithic-papi -f dockerfiles/${DEVICE}/Dockerfile.monolithic.papi dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-ssdmobilenetv2-server
-    docker image build -t pocket-ssdmobilenetv2-server -f dockerfiles/${DEVICE}/Dockerfile.pocket.ser dockerfiles/${DEVICE}
+    docker rmi -f pocket-ssdmobilenetv2-${DEVICE}-server
+    docker image build -t pocket-ssdmobilenetv2-${DEVICE}-server -f dockerfiles/${DEVICE}/Dockerfile.pocket.ser dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-ssdmobilenetv2-application
-    docker image build -t pocket-ssdmobilenetv2-application -f dockerfiles/${DEVICE}/Dockerfile.pocket.app dockerfiles/${DEVICE}
+    docker rmi -f pocket-ssdmobilenetv2-${DEVICE}-application
+    docker image build -t pocket-ssdmobilenetv2-${DEVICE}-application -f dockerfiles/${DEVICE}/Dockerfile.pocket.app dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-ssdmobilenetv2-perf-application
-    docker image build --no-cache -t pocket-ssdmobilenetv2-perf-application -f dockerfiles/${DEVICE}/Dockerfile.pocket.perf.app dockerfiles/${DEVICE}
+    docker rmi -f pocket-ssdmobilenetv2-${DEVICE}-perf-application
+    docker image build --no-cache -t pocket-ssdmobilenetv2-${DEVICE}-perf-application -f dockerfiles/${DEVICE}/Dockerfile.pocket.perf.app dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-ssdmobilenetv2-monolithic
-    docker image build -t pocket-ssdmobilenetv2-monolithic -f dockerfiles/${DEVICE}/Dockerfile.monolithic.perf dockerfiles/${DEVICE}
+    docker rmi -f pocket-ssdmobilenetv2-${DEVICE}-monolithic
+    docker image build -t pocket-ssdmobilenetv2-${DEVICE}-monolithic -f dockerfiles/${DEVICE}/Dockerfile.monolithic.perf dockerfiles/${DEVICE}
 
-    docker rmi -f pocket-pypapi-server
-    docker image build -t pocket-pypapi-server -f dockerfiles/${DEVICE}/Dockerfile.pocket.papi.ser dockerfiles/${DEVICE}
+    docker rmi -f pocket-${DEVICE}-pypapi-server
+    docker image build -t pocket-${DEVICE}-pypapi-server -f dockerfiles/${DEVICE}/Dockerfile.pocket.papi.ser dockerfiles/${DEVICE}
 
     rm -rf $(ls dockerfiles/${DEVICE} | grep -v Dockerfile)
 }
@@ -290,22 +308,22 @@ function measure_latency() {
     local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency)
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-ssdmobilenetv2-server
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
 
     mkdir -p ${rusage_logging_dir}
     init
 
     run_server_basic $server_container_name $SERVER_IP $server_image
-    sleep 3
+    sleep 5
 
     ../scripts/pocket/pocket \
         run \
             --measure-latency $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
-            --memory=2048mb \
+            --memory=$(bc <<< '1024 * 2')mb \
             --cpus=5 \
             --volume=$(pwd)/data:/data \
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
@@ -332,11 +350,11 @@ function measure_latency() {
             run \
                 --measure-latency $rusage_logging_dir \
                 -d \
-                -b pocket-ssdmobilenetv2-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
-                --memory=512mb \
-                --cpus=1.3 \
+                --memory=$POCKET_FE_MEM \
+                --cpus=$POCKET_FE_CPU \
                 --volume=$(pwd)/data:/data \
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
@@ -372,19 +390,19 @@ function measure_exec_breakdown() {
     local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency)
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-ssdmobilenetv2-server
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
 
     mkdir -p ${rusage_logging_dir}
     init
 
     run_server_basic $server_container_name $SERVER_IP $server_image
-    sleep 3
+    sleep 5
 
     ../scripts/pocket/pocket \
         run \
             --measure-latency $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
             --memory=2048mb \
@@ -414,11 +432,11 @@ function measure_exec_breakdown() {
             run \
                 --measure-latency $rusage_logging_dir \
                 -d \
-                -b pocket-ssdmobilenetv2-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
-                --memory=512mb \
-                --cpus=1.3 \
+                --memory=$POCKET_FE_MEM \
+                --cpus=$POCKET_FE_CPU \
                 --volume=$(pwd)/data:/data \
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
@@ -482,16 +500,16 @@ function measure_latency_monolithic() {
     # 1024 + 512 = 1536mb
     # 1024 + 1024 = 2048mb
 
-    docker run \
+    eval docker run "${GPUS}" \
         --name ssdmobilenetv2-monolithic-0000 \
-        --cpus=1.5 \
-        --memory=$(bc <<< '1024 * 0.9')mb \
+        --cpus=$MONOLITHIC_CPU \
+        --memory=$MONOLITHIC_MEM \
         --volume=$(pwd)/data:/data \
         --volume=$(pwd):/root/ssdmobilenetv2 \
         --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
         --workdir=/root/ssdmobilenetv2 \
-        pocket-ssdmobilenetv2-monolithic \
-        python3 app.monolithic.py
+        pocket-ssdmobilenetv2-${DEVICE}-monolithic \
+        python3 app.monolithic.py >/dev/null 2>&1
 
     running_time=$(util_get_running_time ssdmobilenetv2-monolithic-0000)
     echo $running_time > "${rusage_logging_dir}"/ssdmobilenetv2-monolithic-0000.latency
@@ -500,17 +518,17 @@ function measure_latency_monolithic() {
         local index=$(printf "%04d" $i)
         local container_name=ssdmobilenetv2-monolithic-${index}
 
-        docker \
+        eval docker \
             run \
-                -d \
+                -d "${GPUS}" \
                 --name ${container_name} \
-                --cpus=1.5 \
-                --memory=$(bc <<< '1024 * 0.9')mb \
+                --cpus=$MONOLITHIC_CPU \
+                --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdmobilenetv2 \
                 --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdmobilenetv2 \
-                pocket-ssdmobilenetv2-monolithic \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic \
                 python3 app.monolithic.py
         sleep $(generate_rand_num 3)
     done
@@ -539,7 +557,7 @@ function measure_papi() {
     local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency)
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-pypapi-server
+    local server_image=pocket-${DEVICE}-pypapi-server
 
     mkdir -p ${rusage_logging_dir}
     init
@@ -551,11 +569,11 @@ function measure_papi() {
         run \
             --measure-latency $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
-                --memory=512mb \
-                --cpus=1.3 \
+            --memory=$(bc <<< '1024 * 2')mb \
+            --cpus=5 \
             --volume=$(pwd)/data:/data \
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
@@ -582,11 +600,11 @@ function measure_papi() {
             run \
                 --measure-latency $rusage_logging_dir \
                 -d \
-                -b pocket-ssdmobilenetv2-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
-                --memory=512mb \
-                --cpus=1.3 \
+                --memory=$POCKET_FE_MEM \
+                --cpus=$POCKET_FE_CPU \
                 --volume=$(pwd)/data:/data \
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
@@ -620,7 +638,7 @@ function measure_pf() {
     local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency)
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-ssdmobilenetv2-server
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
 
     mkdir -p ${rusage_logging_dir}
     init
@@ -632,11 +650,11 @@ function measure_pf() {
         run \
             --measure-latency $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
-            --memory=512mb \
-            --cpus=1.3 \
+            --memory=$(bc <<< '1024 * 2')mb \
+            --cpus=5 \
             --volume=$(pwd)/data:/data \
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
@@ -663,11 +681,11 @@ function measure_pf() {
             run \
                 --measure-latency $rusage_logging_dir \
                 -d \
-                -b pocket-ssdmobilenetv2-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
-                --memory=512mb \
-                --cpus=1.3 \
+                --memory=$POCKET_FE_MEM \
+                --cpus=$POCKET_FE_CPU \
                 --volume=$(pwd)/data:/data \
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
@@ -720,19 +738,19 @@ function measure_papi_monolithic() {
     #     --volume=$(pwd)/../tfrpc/server/papi:/papi \
     #     --env EVENTSET=$EVENTSET \
     #     --env NUM=$NUMINSTANCES \
-    #     pocket-ssdmobilenetv2-monolithic-papi \
+    #     pocket-ssdmobilenetv2-${DEVICE}-monolithic-papi \
     #     python3 app.monolithic.papi.py
 
     for i in $(seq 1 $numinstances); do
         local index=$(printf "%04d" $i)
         local container_name=ssdmobilenetv2-monolithic-${index}
 
-        docker \
+        eval docker \
             run \
-                -d \
+                -d "${GPUS}" \
                 --name ${container_name} \
-                --cpus=1.5 \
-                --memory=$(bc <<< '1024 * 0.9')mb \
+                --cpus=$MONOLITHIC_CPU \
+                --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdmobilenetv2 \
                 --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
@@ -741,7 +759,7 @@ function measure_papi_monolithic() {
                 --volume=$(pwd)/../tfrpc/server/papi:/papi \
                 --env EVENTSET=$EVENTSET \
                 --env NUM=$NUMINSTANCES \
-                pocket-ssdmobilenetv2-monolithic-papi \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic-papi \
                 python3 app.monolithic.papi.py
         sleep $(generate_rand_num 3)
     done
@@ -781,7 +799,7 @@ function measure_pf_monolithic() {
     #     --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/ssdmobilenetv2 \
     #     --env NUM=$NUMINSTANCES \
-    #     pocket-ssdmobilenetv2-monolithic-papi \
+    #     pocket-ssdmobilenetv2-${DEVICE}-monolithic-papi \
     #     python3 app.monolithic.pf.py
     #     # --cap-add CAP_SYS_ADMIN \
 
@@ -789,18 +807,18 @@ function measure_pf_monolithic() {
         local index=$(printf "%04d" $i)
         local container_name=ssdmobilenetv2-monolithic-${index}
 
-        docker \
+        eval docker \
             run \
-                -d \
+                -d "${GPUS}" \
                 --name ${container_name} \
-                --cpus=1.5 \
-                --memory=$(bc <<< '1024 * 0.9')mb \
+                --cpus=$MONOLITHIC_CPU \
+                --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/ssdmobilenetv2 \
                 --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdmobilenetv2 \
                 --env NUM=$NUMINSTANCES \
-                pocket-ssdmobilenetv2-monolithic-papi \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic-papi \
                 python3 app.monolithic.pf.py
         sleep $(generate_rand_num 3)
     done
@@ -818,8 +836,6 @@ function measure_pf_monolithic() {
         docker logs $container_name 2>&1 | grep "inference_time"
     done
 }
-
-
 
 function measure_rusage_monolithic() {
     local numinstances=$1
@@ -847,7 +863,7 @@ function measure_rusage_monolithic() {
             --volume=$(pwd):/root/ssdmobilenetv2 \
             --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
             --workdir=/root/ssdmobilenetv2 \
-            pocket-ssdmobilenetv2-monolithic \
+            pocket-ssdmobilenetv2-${DEVICE}-monolithic \
             bash
 
     docker \
@@ -875,7 +891,7 @@ function measure_rusage_monolithic() {
                 --volume=$(pwd):/root/ssdmobilenetv2 \
                 --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/ssdmobilenetv2 \
-                pocket-ssdmobilenetv2-monolithic \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic \
                 bash
     done
 
@@ -905,7 +921,6 @@ function measure_rusage_monolithic() {
     # docker logs -f yolo-monolithic-$(printf "%04d" $numinstances)
 }
 
-
 function measure_perf_monolithic() {
     local numinstances=$1
     local container_list=()
@@ -934,7 +949,7 @@ function measure_perf_monolithic() {
             --cap-add SYS_ADMIN \
             --cap-add IPC_LOCK \
             --workdir=/root/ssdmobilenetv2 \
-            pocket-ssdmobilenetv2-monolithic-perf \
+            pocket-ssdmobilenetv2-${DEVICE}-monolithic-perf \
             perf stat -e ${PERF_COUNTERS} -o /data/$TIMESTAMP-${numinstances}-perf-monolithic/ssdmobilenetv2-monolithic-0000.perf.log python3 app.monolithic.py
 
     docker \
@@ -957,7 +972,7 @@ function measure_perf_monolithic() {
                 --cap-add SYS_ADMIN \
                 --cap-add IPC_LOCK \
                 --workdir=/root/ssdmobilenetv2 \
-                pocket-ssdmobilenetv2-monolithic-perf \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic-perf \
                 perf stat -e ${PERF_COUNTERS} -o /data/$TIMESTAMP-${numinstances}-perf-monolithic/${container_name}.perf.log python3 app.monolithic.py
         sleep $(generate_rand_num 3)
     done
@@ -975,8 +990,6 @@ function measure_perf_monolithic() {
     # docker logs -f yolo-monolithic-$(printf "%04d" $numinstances)
 }
 
-
-
 function measure_rusage() {
     local numinstances=$1
     local container_list=()
@@ -984,7 +997,7 @@ function measure_rusage() {
     local rusage_logging_file=tmp-service.log
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-ssdmobilenetv2-server
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
 
     mkdir -p ${rusage_logging_dir}
     init
@@ -995,7 +1008,7 @@ function measure_rusage() {
         run \
             --rusage $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
             --memory=512mb \
@@ -1030,7 +1043,7 @@ function measure_rusage() {
             run \
                 --rusage $rusage_logging_dir \
                 -d \
-                -b pocket-ssdmobilenetv2-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
                 --memory=512mb \
@@ -1070,7 +1083,7 @@ function measure_cprofile() {
     local rusage_logging_file=tmp-service.log
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-ssdmobilenetv2-server
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
 
     mkdir -p ${rusage_logging_dir}
     init
@@ -1080,7 +1093,7 @@ function measure_cprofile() {
         run \
             --cprofile $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
             --memory=512mb \
@@ -1110,7 +1123,7 @@ function measure_cprofile() {
             run \
                 --cprofile $rusage_logging_dir \
                 -d \
-                -b pocket-ssdmobilenetv2-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
                 --memory=512mb \
@@ -1163,7 +1176,7 @@ function measure_perf() {
     local rusage_logging_file=tmp-service.log
 
     local server_container_name=pocket-server-001
-    local server_image=pocket-ssdmobilenetv2-server
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
 
     mkdir -p ${rusage_logging_dir}
     init
@@ -1176,7 +1189,7 @@ function measure_perf() {
         run \
             --perf $rusage_logging_dir \
             -d \
-            -b pocket-ssdmobilenetv2-perf-application \
+            -b pocket-ssdmobilenetv2-${DEVICE}-perf-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
             --memory=512mb \
@@ -1211,7 +1224,7 @@ function measure_perf() {
             run \
                 -d \
                 --perf $rusage_logging_dir \
-                -b pocket-ssdmobilenetv2-perf-application \
+                -b pocket-ssdmobilenetv2-${DEVICE}-perf-application \
                 -t ${container_name} \
                 -s ${server_container_name} \
                 --memory=512mb \

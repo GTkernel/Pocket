@@ -22,7 +22,7 @@ function main() {
             ./build-pockets.sh --hello-world
             ;;
         all-pockets)
-            ./build-pockets.sh --all
+            ./build-pockets.sh --all --gpu=${GPU}
             ;;
     esac
 }

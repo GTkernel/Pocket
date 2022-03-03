@@ -13,6 +13,7 @@ from time import time
 DIRPATH = os.path.dirname(os.path.realpath(__file__))
 # DIRPATH = '/'
 POCKETD_SOCKET_PATH = f'{DIRPATH}/tmp/pocketd.sock'
+DEBUG_POCKET_CLI = False
 
 
 class GlobalOption:
@@ -188,30 +189,28 @@ def pocket_run(args):
     ## default_args
     command.extend(['--volume', POCKETD_SOCKET_PATH])
 
-
     if args.binary is not None:
         command.append(args.binary)
-    # logging.debug(command)
 
     if measure_latency:
         command.extend(args.command)
         logging.debug(f'command={command}')
-        # # debug
-        # try:
-        #     output = subprocess.check_output(command, stderr=subprocess.STDOUT).decode()
-        #     logging.debug(output)
-        # except subprocess.CalledProcessError as e:
-        #     output = e.output.decode()
-        #     logging.debug(output)
 
-        # process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines = True)
-        # logging.debug(process.stdout)
-
-        # block below is a regular flow
-        process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # with open(f'{log_dir}/{args.name}.latency', 'w') as f:
-        #     elapsed_time = DockerUtils.get_elapsed_time(args.name)
-        #     f.write(elapsed_time)
+        if DEBUG_POCKET_CLI:
+            # debug
+            try:
+                output = subprocess.check_output(command, stderr=subprocess.STDOUT).decode()
+                logging.debug(output)
+            except subprocess.CalledProcessError as e:
+                output = e.output.decode()
+                logging.debug(output)
+            # process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines = True)
+            # logging.debug(process.stdout)
+        else:
+            process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # with open(f'{log_dir}/{args.name}.latency', 'w') as f:
+            #     elapsed_time = DockerUtils.get_elapsed_time(args.name)
+            #     f.write(elapsed_time)
         return
     elif rusage_measure:
         # command.extend(args.command)

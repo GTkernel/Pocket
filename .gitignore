@@ -134,3 +134,10 @@ r_resources/coco
 
 # Logs
 a_*/data
+
+# docker build remainings
+a_*/dockerfiles/cpu/obj_det_sample_img
+a_*/dockerfiles/gpu/obj_det_sample_img
+
+# models
+r_resources/models/imdb_prediction

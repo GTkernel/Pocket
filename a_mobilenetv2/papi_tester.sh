@@ -2,8 +2,8 @@
 sudo sh -c 'echo -1 >/proc/sys/kernel/perf_event_paranoid'
 
 container_name=papi-test
-# docker run -dit --privileged --name=$container_name pocket-mobilenet-monolithic-papi
-docker run -dit --cap-add CAP_SYS_ADMIN --name=$container_name pocket-mobilenet-monolithic-papi
+# docker run -dit --privileged --name=$container_name pocket-mobilenet-${DEVICE}-monolithic-papi
+docker run -dit --cap-add CAP_SYS_ADMIN --name=$container_name pocket-mobilenet-${DEVICE}-monolithic-papi
 docker exec $container_name apt-get install papi-tools -y
 docker exec $container_name papi_avail -a
 docker exec $container_name papi_component_avail -a

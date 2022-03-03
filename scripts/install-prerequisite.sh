@@ -22,16 +22,17 @@ function main() {
 
     parse_arg "${@:1}"
     
-    # download_coco_imageset
-    # install_docker
-    # if [[ "$GPU" = "0" ]]; then
-    #     :
-    # else
-    #     install_nvidia_driver
-    #     install_nvidia_docker
-    # fi
+    install_packages
+    download_coco_imageset
+    install_docker
+    if [[ "$GPU" = "0" ]]; then
+        :
+    else
+        install_nvidia_driver
+        install_nvidia_docker
+    fi
     update_grub
-    # ask_reboot
+    ask_reboot
 
 }
 
@@ -43,6 +44,12 @@ function parse_arg() {
                 ;;
         esac
     done
+}
+
+function install_packages() {
+    apt-get update -y
+    apt-get install -y bc
+    apt-get install gawk
 }
 
 function download_coco_imageset() {

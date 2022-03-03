@@ -15,7 +15,10 @@ https://docs.google.com/document/d/1pqzPtLVIvwLwJsZwCb2r7yzWMaifudHe1Xvn42T4CcA/
 * This phase installs software dependencies. (10 miniutes)
 ```
 cd scripts
-./install prerequisite
+# To install dependencies to run cpu-based applications
+./install prerequisite --gpu=0 # --gpu=0 can be omitted.
+# To install dependencies to run gpu-based applications, additionally cuda related dependencies have to be installed
+./install prerequisite --gpu=1
 ```
 * **Rebooting** the machine is required. After installation completes, the prompt will ask if you'd like to reboot immediately. You can choose `No` to postpone rebooting, but you need to reboot your machine to use **Pocket** properly.
 
@@ -35,7 +38,10 @@ cd scripts
 ### @Todo: Build All Model Set
 * This process build all application images that are evaluated in Pocket paper.
 ```
-./install all-pockets
+# Build all application binaries for CPU
+./install all-pockets # `--gpu=0` can be added
+# for GPU
+./install all-pockets --gpu=1
 ```
 ### @Todo: Launch All Models 
 * Experiments can be replicated with the command `./launch`.

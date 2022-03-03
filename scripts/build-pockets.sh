@@ -1,5 +1,13 @@
 #!/bin/bash
 
+MOBILENET=0
+RESNET=0
+SMALLBERT=0
+TALKINGHEADS=0
+SSDMOBILENET=0
+SSDRESNET=0
+
+GPU=0
 
 function main() {
     local docker_grp=$(check_docker_access)
@@ -8,13 +16,54 @@ function main() {
         print_error "Your current uid does not belong to docker group. You may not have installed docker yet or your group is not evaluated yet."
         exit 1
     fi
+    
+    parse_arg "${@:1}"
 
-    build_image a_mobilenetv2
-    build_image a_resnet50
-    build_image a_smallbert
-    build_image a_talkingheads
-    build_image a_ssdmobilenetv2_320x320
-    build_image a_ssdresnet50v1_640x640
+    # [[ "$MOBILENET" = "1" ]] && build_image a_mobilenetv2
+    # [[ "$RESNET" = "1" ]] && build_image a_resnet50
+    # [[ "$SMALLBERT" = "1" ]] && build_image a_smallbert
+    [[ "$TALKINGHEADS" = "1" ]] && build_image a_talkingheads
+    # [[ "$SSDMOBILENET" = "1" ]] && build_image a_ssdmobilenetv2_320x320
+    # [[ "$SSDRESNET" = "1" ]] && build_image a_ssdresnet50v1_640x640
+}
+
+function parse_arg() {
+    for arg in $@; do
+        case $arg in
+            --all)
+                MOBILENET=1
+                RESNET=1
+                SMALLBERT=1
+                TALKINGHEADS=1
+                SSDMOBILENET=1
+                SSDRESNET=1
+                ;;
+            --gpu=*)
+                GPU=${arg#*=}
+                ;;
+            --mobilnet)
+                MOBILENET=1
+                ;;
+            --resnet)
+                RESNET=1
+                ;;
+            --smallbert)
+                SMALLBERT=1
+                ;;
+            --talkingheads)
+                TALKINGHEADS=1
+                ;;
+            --ssdmobilnet)
+                SSDMOBILENET=1
+                ;;
+            --ssdresnet)
+                SSDRESNET=1
+                ;;
+            *)
+                echo Invalid option: $arg
+                ;;
+        esac
+    done
 }
 
 function build_image() {
@@ -23,7 +72,7 @@ function build_image() {
 
     cd ../$app_name
 
-    bash exp_script.sh build
+    bash exp_script.sh build --device=$([[ "${GPU}" = "1" ]] && echo gpu || echo cpu)
 
     cd $workding_dir
 }
