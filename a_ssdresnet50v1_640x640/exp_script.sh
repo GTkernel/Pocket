@@ -84,6 +84,9 @@ function parse_arg(){
             --cpupolicy=*)
                 POCKET_CPU_POLICY="${arg#*=}"
                 ;;
+            --squeeze)
+                SQUEEZE=1
+                ;;
         esac
     done
 }
@@ -253,7 +256,8 @@ function init() {
         MONOLITHIC_CPU=2
         MONOLITHIC_MEM=$(bc <<< '1024 * 1.3')mb
     elif [[ "$DEVICE" = "gpu" ]]; then
-        POCKET_FE_CPU=1.8
+        [[ SQUEEZE = "1" ]] && POCKET_FE_CPU=0.5 || POCKET_FE_CPU=1.8
+        # [[ SQUEEZE = "1" ]] && POCKET_FE_CPU=0.5 || POCKET_FE_CPU=1.8
         POCKET_FE_MEM=$(bc <<< '1024 * 0.5')mb
         POCKET_BE_CPU=1
         POCKET_BE_MEM=$(bc <<< '1024 * 2.4')mb

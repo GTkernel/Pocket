@@ -87,9 +87,12 @@ if __name__ == '__main__':
     e = time()
     logging.info(f'graph_construction_time={e-s}')
     selected_image = 'Beach' # @param ['Beach', 'Dogs', 'Naxos Taverna', 'Beatles', 'Phones', 'Birds']
-    image = preprocess_image(IMAGES_FOR_TEST[selected_image])
     s = time()
+    image = preprocess_image(IMAGES_FOR_TEST[selected_image])
+    # s = time()
     for i in range(10):
+        # if i % 3 == 0:
+        #     image = preprocess_image(IMAGES_FOR_TEST[selected_image])
         results = MODEL(image)
         # result = {key:np.array(value) for key,value in results.items()}
         # classes = [category_index[clazz]['name'] for clazz in result['detection_classes'][0].astype(int)]
