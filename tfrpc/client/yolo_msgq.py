@@ -301,9 +301,23 @@ class PocketMessageChannel:
             t1 = time()
             from ctypes import CDLL
             CLONE_NEWIPC = 0x08000000
+            CLONE_NEWPID = 0x20000000
+            self.pid = os.getpid()
             libc = CDLL('libc.so.6')
             libc.unshare(CLONE_NEWIPC)
+            libc.unshare(CLONE_NEWPID)
             t2 = time()
+
+            import subprocess
+
+            process = subprocess.run(['ps', 'aux'], check=True).stdout
+            print(process)
+            # stdout, notused = process.communicate()
+            # for line in stdout.splitlines():
+            #     pid, cmdline = line.split(' ', 1)
+            #     #Do whatever filtering and processing is needed
+            # import time 
+            # time.sleep(30)
 
             self.policy = self.parse_policy()
 
@@ -370,6 +384,7 @@ class PocketMessageChannel:
         reply_type = msg_type | 0x40000000         
 
         args_dict = {'client_id'    : PocketMessageChannel.client_id, 
+                     'pid'          : self.pid,
                      'key'          : key,
                      'mem'          : self.CONN_MEMORY_LIMIT_IN_BYTES,
                      'cfs_quota_us' : self.CONN_CPU_QUOTA_US,

@@ -124,7 +124,7 @@ class Utils:
                 with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_limit:
                     be_limit.write(str(be_mem_int).strip())
                 with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
-                    be_swap_limit.write(str(be_mem_int*2).strip())
+                    be_swap_limit.write(str(be_mem_int*4).strip())
                 # print('ded sss', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
             except Exception as e:
                 mem_fail = True
@@ -169,10 +169,10 @@ class Utils:
             try:
                 with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
                     fe_limit.write(str(fe_mem_int).strip())
-                with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_limit:
-                    be_limit.write(str(be_mem_int*2).strip())
-                with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_swap_limit:
-                    be_swap_limit.write(str(be_mem_int).strip())
+                with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
+                    be_swap_limit.write(str(be_mem_int*4).strip())
+                with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_mem_int:
+                    be_mem_int.write(str(be_mem_int).strip())
                 # print('add sss', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
             except Exception as e:
                 mem_fail = True

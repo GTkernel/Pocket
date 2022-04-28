@@ -9,11 +9,10 @@ from shlex import split
 import logging
 from time import time
 
-
 DIRPATH = os.path.dirname(os.path.realpath(__file__))
 # DIRPATH = '/'
 POCKETD_SOCKET_PATH = f'{DIRPATH}/tmp/pocketd.sock'
-DEBUG_POCKET_CLI = False
+DEBUG_POCKET_CLI = True if os.environ.get('DEBUG', 0) == 1 else False
 
 
 class GlobalOption:
@@ -121,6 +120,20 @@ class DockerUtils:
         end = float(end_str)
         return str(end-start)
 
+    @staticmethod
+    def multiply_to_humanreadable(humanredable):
+        num = ''
+        unit = ''
+        multiplier = 4
+        for c in humanredable:
+            if c.isdigit() or c == '.':
+                num = num + c
+            elif c in 'bBkKmMgG':
+                unit = unit + c
+        result_num = multiplier * float(num)
+        result_num = int(result_num) if (result_num).is_integer() else result_num
+        return str(result_num) + unit
+
 
 pocketd = PocketDaemon()
 
@@ -169,12 +182,15 @@ def pocket_run(args):
         command.extend(['--cap-add', 'IPC_LOCK'])
     command.extend(['--name', args.name])
     command.extend(['--ipc', f'container:{args.service}'])
+    command.extend(['--pid', f'container:{args.service}'])
     if args.network is not None:
         command.extend(['--network', args.network])
     if args.workdir is not None:
         command.extend(['--workdir', args.workdir])
     if args.memory is not None:
         command.extend(['--memory', args.memory])
+        command.extend(['--memory-swap', DockerUtils.multiply_to_humanreadable(args.memory)])
+        # command.extend(['--memory-swappiness', '100'])
     if args.cpus is not None:
         command.extend(['--cpus', args.cpus])
     if args.index is not None:

@@ -9,6 +9,9 @@ from absl.flags import FLAGS
 from enum import Enum
 from queue import Queue
 import math
+from math import ceil
+from ctypes import c_void_p, byref, CDLL, cast, POINTER, c_char, c_size_t, c_int
+from ctypes.util import find_library
 from imghdr import what
 import tensorflow_text
 
@@ -20,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from pocket_tf_if import PocketControl, TFFunctions, ReturnValue, TFDataType, CLIENT_TO_SERVER, SERVER_TO_CLIENT, SharedMemoryChannel
 os.chdir('/root/yolov3-tf2')
+LIBC = CDLL(find_library('c'))
 
 GLOBAL_SLEEP = 0.01
 LOCAL_SLEEP = 0.0001
@@ -63,6 +67,16 @@ class Utils:
             with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'r') as limit_in_bytes:
                 memory_limit = int(limit_in_bytes.read().strip())
             return memory_limit
+
+    @staticmethod
+    def get_memory_usage(client_id = None):
+        if client_id != None:
+            with open(f'/cg/memory/docker/{client_id}/memory.usage_in_bytes', 'r') as usage_in_bytes:
+                memory_usage = int(usage_in_bytes.read().strip())
+        else:
+            with open('/sys/fs/cgroup/memory/memory.usage_in_bytes', 'r') as usage_in_bytes:
+                memory_usage = int(usage_in_bytes.read().strip())
+        return memory_usage
 
     @staticmethod
     def get_cpu_limit(client_id = None):
@@ -116,17 +130,35 @@ class Utils:
 
         if mem != 0:
             try:
-                with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
-                    fe_limit.write(str(fe_mem_int).strip())
+                # Checks if memory limit to be < current usage.
+                # current_usage = Utils.get_memory_usage()
+                # if current_usage >= be_mem_int:
+                #     difference = current_usage - be_mem_int
+                #     page_size = LIBC.getpagesize()
+                #     how_many_pages = ceil(difference/page_size)
+                #     num_bytes_to_evict = page_size * how_many_pages
+                #     tmp_ptr = c_void_p()
+                #     ret = LIBC.posix_memalign(byref(tmp_ptr), page_size, num_bytes_to_evict)
+                #     if ret != 0:
+                #         raise Exception('ENOMEM')
+                #     c_char_ptr = cast(tmp_ptr, POINTER(c_char * num_bytes_to_evict))
+                #     for i in range(0, how_many_pages):
+                #         c_char_ptr.contents[i*page_size] = c_char(0xff)
+                #     LIBC.free(tmp_ptr)
+                    
                 with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_limit:
                     be_limit.write(str(be_mem_int).strip())
-                with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
-                    be_swap_limit.write(str(be_mem_int*2).strip())
-                # print('ded sss', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
+                # with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
+                #     be_swap_limit.write(str(be_mem_int*4).strip())
+
+                # with open(f'/cg/memory/docker/{client_id}/memory.memsw.limit_in_bytes', 'w') as fe_swap_limit:
+                #     fe_swap_limit.write(str(fe_mem_int*4).strip())
+                with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
+                    fe_limit.write(str(fe_mem_int).strip())
+
             except Exception as e:
                 mem_fail = True
                 debug(repr(e), e)
-                print('ded fff', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
 
         if cfs_quota_us != 0:
             try:
@@ -160,21 +192,62 @@ class Utils:
         be_cfs_quota, be_cfs_period = Utils.get_cpu_limit()
         be_cpu_int = be_cfs_quota + cfs_quota_us
 
-        # debug(f'old-->cpu={Utils.get_cpu_limit()}) + {cfs_quota_us}, mem={Utils.get_memory_limit()} + {mem}')
+        debug(f'old-->cpu={Utils.get_cpu_limit()}) + {cfs_quota_us}, mem={Utils.get_memory_limit()} + {mem}')
 
         if mem != 0:
             try:
+                # Checks if memory limit to be < current usage.
+                current_usage = Utils.get_memory_usage(client_id)
+                if current_usage >= fe_mem_int:
+                    pid = PocketManager.get_instance().fe_to_pid.get(client_id)
+                    debug(f'pid={pid}')
+                    import resource
+                    resource.prlimit(pid, resource.RLIMIT_RSS, (fe_mem_int, fe_mem_int))
+                    # difference = current_usage - fe_mem_int
+                    # page_size = LIBC.getpagesize()
+                    # how_many_pages = ceil(difference/page_size)
+                    # num_bytes_to_evict = page_size * how_many_pages *2
+                    # tmp_ptr = c_void_p()
+                    # ret = LIBC.posix_memalign(byref(tmp_ptr), page_size, num_bytes_to_evict)
+                    # if ret != 0:
+                    #     raise Exception('ENOMEM')
+                    # c_char_ptr = cast(tmp_ptr, POINTER(c_char * num_bytes_to_evict))
+                    # for i in range(0, how_many_pages):
+                    #     c_char_ptr.contents[i*page_size] = c_char(0xff)
+                    # # madvise = LIBC.madvise
+                    # # madvise.argtypes = [c_void_p, c_size_t, c_int]
+                    # # madvise.restype = c_int
+                    # # debug(tmp_ptr, tmp_ptr.value, num_bytes_to_evict)
+                    # LIBC.free(tmp_ptr)
+                    # #define MADV_FREE       8               /* free pages only if memory pressure */
+                    # #define MADV_DONTNEED	4		/* don't need these pages */
+                    # #define MADV_REMOVE	9		/* remove these pages & resources */
+                    # #define MADV_SOFT_OFFLINE 101		/* soft offline page for testing */
+
+                    # ret = madvise(tmp_ptr, num_bytes_to_evict, 8)
+                    # if  ret != 0:
+                    #     debug(f'return={ret}')
+
+                # with open(f'/cg/memory/docker/{client_id}/memory.memsw.limit_in_bytes', 'w') as fe_swap_limit:
+                #     try:
+                #         fe_swap_limit.write(str(10*1024*1024*1024).strip())
+                #     except:
+                #         raise Exception('OutOfMemory')
                 with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
                     fe_limit.write(str(fe_mem_int).strip())
-                with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_limit:
-                    be_limit.write(str(be_mem_int*2).strip())
-                with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_swap_limit:
-                    be_swap_limit.write(str(be_mem_int).strip())
-                # print('add sss', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
+                # with open(f'/cg/memory/docker/{client_id}/memory.memsw.limit_in_bytes', 'w') as fe_swap_limit:
+                #     try:
+                #         fe_swap_limit.write(str(fe_mem_int*4).strip())
+                #     except:
+                #         raise Exception('OutOfMemory')
+
+                # with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
+                #     be_swap_limit.write(str(be_mem_int*4).strip())
+                with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_limit:
+                    be_limit.write(str(be_mem_int).strip())
             except Exception as e:
                 mem_fail = True
                 debug(repr(e), e)
-                print('add fff', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
 
         if cfs_quota_us != 0:
             try:
@@ -1397,6 +1470,7 @@ class PocketManager:
         self.per_client_object_store = {}
         self.model_dict = {}
         self.shmem_dict = {}
+        self.fe_to_pid = {}
         self.dict_modelname_to_session = {} 
         self.dict_clientid_to_modelname = {} # todo - clean up @ detach
 
@@ -1464,25 +1538,28 @@ class PocketManager:
             if type == PocketControl.CONNECT:
                 # debug('>>>conn')
 
-                self.add_client_queue(args_dict['client_id'], args_dict['key'])
-                self.per_client_object_store[args_dict['client_id']] = {}
-
                 client_id = args_dict.get('client_id')
+                self.add_client_queue(client_id, args_dict['key'])
+                self.per_client_object_store[client_id] = {}
+
                 mem = args_dict.get('mem')
                 cfs_quota_us = args_dict.get('cfs_quota_us')
                 cfs_period_us =  args_dict.get('cfs_period_us')
                 Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-                self.send_ack_to_client(args_dict['client_id'])
+                self.send_ack_to_client(client_id)
+                self.fe_to_pid[client_id] = args_dict.get('pid')
 
-                self.shmem_dict[args_dict['client_id']] = SharedMemoryChannel(args_dict['client_id'])
+                self.shmem_dict[client_id] = SharedMemoryChannel(client_id)
             elif type == PocketControl.DISCONNECT:
                 # debug('>>>detach')
-                its_lq = self.queues_dict.pop(args_dict['client_id'])
-                self.per_client_object_store.pop(args_dict['client_id'], None)
-                self.shmem_dict.pop(args_dict['client_id'], None)
+                client_id = args_dict.get('client_id')
+                its_lq = self.queues_dict.pop(client_id)
+                self.per_client_object_store.pop(client_id, None)
+                self.shmem_dict.pop(client_id, None)
 
-                self.dict_clientid_to_modelname.pop(args_dict['client_id'], None)
-                self.futures.pop(args_dict['client_id'], None)
+                self.dict_clientid_to_modelname.pop(client_id, None)
+                self.futures.pop(client_id, None)
+                self.fe_to_pid.pop(client_id)
 
                 # if args_dict['client_id'] in _matmultest_dict: ## test_code
                 #     matrices = _matmultest_dict.pop(args_dict['client_id'])
@@ -1497,7 +1574,6 @@ class PocketManager:
 
                 gc.collect()
 
-                client_id = args_dict.get('client_id')
                 mem = args_dict.get('mem')
                 cfs_quota_us = args_dict.get('cfs_quota_us')
                 cfs_period_us =  args_dict.get('cfs_period_us')

@@ -132,6 +132,7 @@ function run_server_basic() {
         --ipc=shareable \
         --cpus=$POCKET_BE_CPU \
         --memory=$POCKET_BE_MEM \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -157,6 +158,7 @@ function run_server_papi() {
         --ipc=shareable \
         --cpus=$POCKET_BE_CPU \
         --memory=$POCKET_BE_MEM \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -184,6 +186,7 @@ function run_server_pf() {
         --ipc=shareable \
         --cpus=$POCKET_BE_CPU \
         --memory=$POCKET_BE_MEM \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -211,6 +214,7 @@ function run_server_cProfile() {
         --ipc=shareable \
         --cpus=1.0 \
         --memory=1024mb \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -234,6 +238,7 @@ function run_server_perf() {
         --ipc=shareable \
         --cpus=1.0 \
         --memory=1024mb \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -253,6 +258,7 @@ function init() {
         POCKET_BE_CPU=1
         POCKET_BE_MEM=$(bc <<< '1024 * 1.3')mb
         # POCKET_BE_MEM=$(bc <<< '1024 * 2')mb
+        POCKET_BE_MEM_SWAP=$(bc <<< '1024 * 1.3 * 4')mb
         MONOLITHIC_CPU=2
         MONOLITHIC_MEM=$(bc <<< '1024 * 1.3')mb
     elif [[ "$DEVICE" = "gpu" ]]; then
@@ -261,6 +267,7 @@ function init() {
         POCKET_FE_MEM=$(bc <<< '1024 * 0.5')mb
         POCKET_BE_CPU=1
         POCKET_BE_MEM=$(bc <<< '1024 * 2.4')mb
+        POCKET_BE_MEM=$(bc <<< '1024 * 2.4 * 4')mb
         MONOLITHIC_CPU=2
         MONOLITHIC_MEM=$(bc <<< '1024 * 2.4')mb
     fi
@@ -330,7 +337,7 @@ function measure_latency() {
             -b pocket-ssdresnet50v1-${DEVICE}-application \
             -t pocket-client-0000 \
             -s ${server_container_name} \
-            --memory=$(bc <<< '1024 * 2')mb \
+            --memory=$(bc <<< '1024 * 0.125')mb \
             --cpus=5 \
             --volume=$(pwd)/data:/data \
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
@@ -344,10 +351,13 @@ function measure_latency() {
             --env CONTAINER_ID=pocket-client-0000 \
             --workdir='/root/ssdresnet50v1' \
             -- python3 app.pocket.py
+            # --memory=$(bc <<< '1024 * 2')mb \
 
     sleep 5
     ../scripts/pocket/pocket \
         wait pocket-client-0000
+
+    exit
 
     for i in $(seq 1 $numinstances); do
         local index=$(printf "%04d" $i)

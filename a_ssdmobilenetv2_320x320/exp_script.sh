@@ -127,7 +127,7 @@ function run_server_basic() {
         --ip=$server_ip \
         --ipc=shareable \
         --cpus=$POCKET_BE_CPU \
-        --memory=$POCKET_FE_MEM \
+        --memory=$POCKET_BE_MEM \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -151,7 +151,7 @@ function run_server_papi() {
         --ip=$server_ip \
         --ipc=shareable \
         --cpus=$POCKET_BE_CPU \
-        --memory=$POCKET_FE_MEM \
+        --memory=$POCKET_BE_MEM \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \
@@ -177,7 +177,7 @@ function run_server_pf() {
         --ip=$server_ip \
         --ipc=shareable \
         --cpus=$POCKET_BE_CPU \
-        --memory=$POCKET_FE_MEM \
+        --memory=$POCKET_BE_MEM \
         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/../scripts/sockets:/sockets \

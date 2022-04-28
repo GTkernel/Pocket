@@ -19,12 +19,12 @@ function main() {
     
     parse_arg "${@:1}"
 
-    # [[ "$MOBILENET" = "1" ]] && build_image a_mobilenetv2
-    # [[ "$RESNET" = "1" ]] && build_image a_resnet50
-    # [[ "$SMALLBERT" = "1" ]] && build_image a_smallbert
+    [[ "$MOBILENET" = "1" ]] && build_image a_mobilenetv2
+    [[ "$RESNET" = "1" ]] && build_image a_resnet50
+    [[ "$SMALLBERT" = "1" ]] && build_image a_smallbert
     [[ "$TALKINGHEADS" = "1" ]] && build_image a_talkingheads
-    # [[ "$SSDMOBILENET" = "1" ]] && build_image a_ssdmobilenetv2_320x320
-    # [[ "$SSDRESNET" = "1" ]] && build_image a_ssdresnet50v1_640x640
+    [[ "$SSDMOBILENET" = "1" ]] && build_image a_ssdmobilenetv2_320x320
+    [[ "$SSDRESNET" = "1" ]] && build_image a_ssdresnet50v1_640x640
 }
 
 function parse_arg() {
