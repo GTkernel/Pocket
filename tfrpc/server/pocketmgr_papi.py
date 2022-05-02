@@ -9,6 +9,9 @@ from absl.flags import FLAGS
 from enum import Enum
 from queue import Queue
 import math
+# from ctypes import CDLL
+# from ctypes import c_void_p, byref, cast, POINTER, c_char, c_size_t, c_int
+# from ctypes.util import find_library
 from imghdr import what
 import tensorflow_text
 
@@ -16,11 +19,14 @@ from time import sleep, time
 from sysv_ipc import MessageQueue, IPC_CREX, BusyError
 from threading import Thread, Lock, Event
 from threading import Semaphore as pySem
+# from concurrent.futures import ThreadPoolExecutor
+
 from datetime import datetime
 
 from pocket_tf_if import PocketControl, TFFunctions, ReturnValue, TFDataType, CLIENT_TO_SERVER, SERVER_TO_CLIENT, SharedMemoryChannel
 from papi.papi_helper import pypapi_wrapper
 os.chdir('/root/yolov3-tf2')
+# LIBC = CDLL(find_library('c'))
 
 GLOBAL_SLEEP = 0.01
 LOCAL_SLEEP = 0.0001
@@ -41,8 +47,8 @@ def debug(*args):
 
 MEM_SEM = pySem()
 CPU_SEM = pySem()
-class Utils:
 
+class Utils:
     @staticmethod
     def get_container_id():
         cg = open('/proc/self/cgroup')
@@ -66,6 +72,16 @@ class Utils:
             with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'r') as limit_in_bytes:
                 memory_limit = int(limit_in_bytes.read().strip())
             return memory_limit
+
+    @staticmethod
+    def get_memory_usage(client_id = None):
+        if client_id != None:
+            with open(f'/cg/memory/docker/{client_id}/memory.usage_in_bytes', 'r') as usage_in_bytes:
+                memory_usage = int(usage_in_bytes.read().strip())
+        else:
+            with open('/sys/fs/cgroup/memory/memory.usage_in_bytes', 'r') as usage_in_bytes:
+                memory_usage = int(usage_in_bytes.read().strip())
+        return memory_usage
 
     @staticmethod
     def get_cpu_limit(client_id = None):
@@ -119,17 +135,35 @@ class Utils:
 
         if mem != 0:
             try:
-                with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
-                    fe_limit.write(str(fe_mem_int).strip())
+                # Checks if memory limit to be < current usage.
+                # current_usage = Utils.get_memory_usage()
+                # if current_usage >= be_mem_int:
+                #     difference = current_usage - be_mem_int
+                #     page_size = LIBC.getpagesize()
+                #     how_many_pages = ceil(difference/page_size)
+                #     num_bytes_to_evict = page_size * how_many_pages
+                #     tmp_ptr = c_void_p()
+                #     ret = LIBC.posix_memalign(byref(tmp_ptr), page_size, num_bytes_to_evict)
+                #     if ret != 0:
+                #         raise Exception('ENOMEM')
+                #     c_char_ptr = cast(tmp_ptr, POINTER(c_char * num_bytes_to_evict))
+                #     for i in range(0, how_many_pages):
+                #         c_char_ptr.contents[i*page_size] = c_char(0xff)
+                #     LIBC.free(tmp_ptr)
+                    
                 with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_limit:
                     be_limit.write(str(be_mem_int).strip())
                 with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
                     be_swap_limit.write(str(be_mem_int*4).strip())
-                # print('ded sss', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
+
+                # with open(f'/cg/memory/docker/{client_id}/memory.memsw.limit_in_bytes', 'w') as fe_swap_limit:
+                #     fe_swap_limit.write(str(fe_mem_int*4).strip())
+                with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
+                    fe_limit.write(str(fe_mem_int).strip())
+
             except Exception as e:
                 mem_fail = True
                 debug(repr(e), e)
-                print('ded fff', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
 
         if cfs_quota_us != 0:
             try:
@@ -154,40 +188,144 @@ class Utils:
 
         CPU_SEM.acquire()
         MEM_SEM.acquire()
-            
-        fe_mem_int = Utils.get_memory_limit(client_id) - mem
+
+        fe_mem_current_limit = Utils.get_memory_limit(client_id)
+        fe_mem_int = fe_mem_current_limit - mem
         fe_cfs_quota, fe_cfs_period = Utils.get_cpu_limit(client_id)
         fe_cpu_int = fe_cfs_quota - cfs_quota_us
 
-        be_mem_int = Utils.get_memory_limit() + mem
+        be_mem_current_limit = Utils.get_memory_limit()
+        be_mem_int = be_mem_current_limit + mem
         be_cfs_quota, be_cfs_period = Utils.get_cpu_limit()
         be_cpu_int = be_cfs_quota + cfs_quota_us
+
+        memory_transferred, cpu_transferred = 0, 0
 
         # debug(f'old-->cpu={Utils.get_cpu_limit()}) + {cfs_quota_us}, mem={Utils.get_memory_limit()} + {mem}')
 
         if mem != 0:
-            try:
-                with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
-                    fe_limit.write(str(fe_mem_int).strip())
-                with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
-                    be_swap_limit.write(str(be_mem_int*4).strip())
-                with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_mem_int:
-                    be_mem_int.write(str(be_mem_int).strip())
-                # print('add sss', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
-            except Exception as e:
-                mem_fail = True
-                debug(repr(e), e)
-                print('add fff', open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'r').read().strip(), be_mem_int)
+            # Checks if memory limit to be < current usage.
+            fe_mem_current_usage = Utils.get_memory_usage(client_id)
+            how_much_reduce_available = fe_mem_current_limit - fe_mem_current_usage
+            how_much_reduce_required = mem
+            # debug(how_much_reduce_available, how_much_reduce_required, fe_mem_current_limit, mem)
+            # if fe_mem_int < fe_mem_current_usage:
+            if how_much_reduce_available < how_much_reduce_required:
+                mem = how_much_reduce_available * 0.5
+                fe_mem_int = fe_mem_current_limit - mem
+                be_mem_int = be_mem_current_limit + mem
+                # debug(fe_mem_int)
+                # debug(Utils.get_memory_usage(client_id))
+            else:
+                try:
+                    with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'w') as fe_limit:
+                        fe_limit.write(str(fe_mem_int).strip())
+                    # FE swap space does not need to adjusted.. but leave below.
+                    # with open(f'/cg/memory/docker/{client_id}/memory.memsw.limit_in_bytes', 'w') as fe_swap_limit:
+                    #     try:
+                    #         fe_swap_limit.write(str(fe_mem_int*4).strip())
+                    #     except:
+                    #         raise Exception('OutOfMemory')
+
+                    with open('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes', 'w') as be_swap_limit:
+                        be_swap_limit.write(str(be_mem_int*4).strip())
+                    with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'w') as be_limit:
+                        be_limit.write(str(be_mem_int).strip())
+                    memory_transferred = mem
+                except Exception as e:
+                    memory_transferred = False
+                    debug(repr(e), e)
 
         if cfs_quota_us != 0:
             try:
-                with open(f'/cg/cpu/docker/{client_id}/cpu.cfs_quota_us', 'w') as cfs_quota_us:
-                    cfs_quota_us.write(str(fe_cpu_int).strip())
-                with open('/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'w') as cfs_quota_us:
-                    cfs_quota_us.write(str(be_cpu_int).strip())
+                with open(f'/cg/cpu/docker/{client_id}/cpu.cfs_quota_us', 'w') as cfs_quota_us_f:
+                    cfs_quota_us_f.write(str(fe_cpu_int).strip())
+                with open('/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'w') as cfs_quota_us_f:
+                    cfs_quota_us_f.write(str(be_cpu_int).strip())
+                cpu_transferred = cfs_quota_us
             except Exception as e:
-                cpu_fail = True
+                cpu_transferred = cfs_quota_us
                 debug(repr(e), e)
+
+        MEM_SEM.release()
+        CPU_SEM.release()
+
+        return memory_transferred, cpu_transferred
+
+    @staticmethod
+    def deduct_resource_daemon(client_id, mem, cfs_quota_us, cfs_period_us):
+        global DEDUCT_INTERVAL
+        import socket
+        if cfs_period_us != 100000:
+            raise Exception("cfs_period_us should be 100000")
+        
+        CPU_SEM.acquire()
+        MEM_SEM.acquire()
+
+        # fe_mem_int = Utils.get_memory_limit(client_id) + mem
+        # fe_cfs_quota, fe_cfs_period = Utils.get_cpu_limit(client_id)
+        # fe_cpu_int = fe_cfs_quota + cfs_quota_us
+
+        # be_mem_int = Utils.get_memory_limit() - mem
+        # be_cfs_quota, be_cfs_period = Utils.get_cpu_limit()
+        # be_cpu_int = be_cfs_quota - cfs_quota_us
+
+        # debug(f'old-->cpu={Utils.get_cpu_limit()}) - {cfs_quota_us}, mem={Utils.get_memory_limit()} - {mem}')
+
+
+        if mem != 0 or cfs_quota_us != 0:
+            my_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            my_socket.connect(POCKETD_SOCKET_PATH)
+            args_dict = {'sender'   : 'FE',
+                        'command'  : 'migrate_resource',
+                        'client'   : Utils.get_container_id(), 
+                        'be'       : client_id,
+                        'mem'      : mem,
+                        'cpu'      : cfs_quota_us,
+                        'cpudenom' : cfs_period_us}
+            json_data_to_send = json.dumps(args_dict)
+            my_socket.send(json_data_to_send.encode('utf-8'))
+            data_received = my_socket.recv(1024)
+            my_socket.close()
+
+        MEM_SEM.release()
+        CPU_SEM.release()
+
+
+    @staticmethod
+    def add_resource_daemon(client_id, mem, cfs_quota_us, cfs_period_us):
+        global ADD_INTERVAL
+        import socket
+        if cfs_period_us != 100000:
+            raise Exception("cfs_period_us should be 100000")
+
+        CPU_SEM.acquire()
+        MEM_SEM.acquire()
+            
+        # fe_mem_int = Utils.get_memory_limit(client_id) - mem
+        # fe_cfs_quota, fe_cfs_period = Utils.get_cpu_limit(client_id)
+        # fe_cpu_int = fe_cfs_quota - cfs_quota_us
+
+        # be_mem_int = Utils.get_memory_limit() + mem
+        # be_cfs_quota, be_cfs_period = Utils.get_cpu_limit()
+        # be_cpu_int = be_cfs_quota + cfs_quota_us
+
+        # debug(f'old-->cpu={Utils.get_cpu_limit()}) + {cfs_quota_us}, mem={Utils.get_memory_limit()} + {mem}')
+
+        if mem != 0 or cfs_quota_us != 0:
+            my_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            my_socket.connect(POCKETD_SOCKET_PATH)
+            args_dict = {'sender'   : 'FE',
+                        'command'  : 'migrate_resource',
+                        'client'   : client_id, 
+                        'be'       : Utils.get_container_id(),
+                        'mem'      : mem,
+                        'cpu'      : cfs_quota_us,
+                        'cpudenom' : cfs_period_us}
+            json_data_to_send = json.dumps(args_dict)
+            my_socket.send(json_data_to_send.encode('utf-8'))
+            data_received = my_socket.recv(1024)
+            my_socket.close()
 
         MEM_SEM.release()
         CPU_SEM.release()
@@ -1366,10 +1504,10 @@ class PocketManager:
         self.gq_thread.daemon = True
         self.gq_thread.start()
 
-        # self resource moving
-        self.rsrc_mgr_thread = Thread(target=self.handle_resource_move_request) # todo: remove
-        self.rsrc_mgr_thread.daemon=True
-        self.rsrc_mgr_thread.start()
+        # # self resource moving
+        # self.rsrc_mgr_thread = Thread(target=self.handle_resource_move_request) # todo: remove
+        # self.rsrc_mgr_thread.daemon=True
+        # self.rsrc_mgr_thread.start()
 
         self.handle_clients_thread.daemon = True
         self.handle_clients_thread.start()
@@ -1417,29 +1555,30 @@ class PocketManager:
             if type == PocketControl.CONNECT:
                 # debug('>>>conn')
 
-                self.add_client_queue(args_dict['client_id'], args_dict['key'])
-                self.per_client_object_store[args_dict['client_id']] = {}
-
                 client_id = args_dict.get('client_id')
+                self.add_client_queue(client_id, args_dict['key'])
+                self.per_client_object_store[client_id] = {}
+
                 mem = args_dict.get('mem')
                 cfs_quota_us = args_dict.get('cfs_quota_us')
                 cfs_period_us =  args_dict.get('cfs_period_us')
                 Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-                self.send_ack_to_client(args_dict['client_id'])
+                self.send_ack_to_client(client_id)
 
-                self.shmem_dict[args_dict['client_id']] = SharedMemoryChannel(args_dict['client_id'])
+                self.shmem_dict[client_id] = SharedMemoryChannel(client_id)
             elif type == PocketControl.DISCONNECT:
                 # debug('>>>detach')
-                its_lq = self.queues_dict.pop(args_dict['client_id'])
-                self.per_client_object_store.pop(args_dict['client_id'], None)
-                self.shmem_dict.pop(args_dict['client_id'], None)
+                client_id = args_dict.get('client_id')
+                its_lq = self.queues_dict.pop(client_id)
+                self.per_client_object_store.pop(client_id, None)
+                self.shmem_dict.pop(client_id, None)
 
-                self.dict_clientid_to_modelname.pop(args_dict['client_id'], None)
-                self.futures.pop(args_dict['client_id'], None)
+                self.dict_clientid_to_modelname.pop(client_id, None)
+                self.futures.pop(client_id, None)
 
-                if args_dict['client_id'] in _matmultest_dict: ## test_code
-                    matrices = _matmultest_dict.pop(args_dict['client_id'])
-                    del matrices
+                # if args_dict['client_id'] in _matmultest_dict: ## test_code
+                #     matrices = _matmultest_dict.pop(args_dict['client_id'])
+                #     del matrices
                     # import ctypes
                     # libmatmul = ctypes.CDLL('/root/tfrpc/server/test/libmatmul.so')
                     # libmatmul.free_mem.argtypes = [ctypes.c_void_p]
@@ -1450,7 +1589,6 @@ class PocketManager:
 
                 gc.collect()
 
-                client_id = args_dict.get('client_id')
                 mem = args_dict.get('mem')
                 cfs_quota_us = args_dict.get('cfs_quota_us')
                 cfs_period_us =  args_dict.get('cfs_period_us')
@@ -1506,9 +1644,7 @@ class PocketManager:
                     # if self.graph_build_in_progress and client_id == self.graph_build_owner:
                     #     self.worker_naive(client_id, queue, args_dict)
                     # else:
-
                     self.worker_name(client_id, queue, args_dict)
-
                     # self.futures[client_id] = self.executor.submit(self.worker_naive, client_id, queue, args_dict)
                     # self.futures[client_id] = self.executor.submit(self.worker_name, client_id, queue, args_dict)
                     # self.worker_naive(client_id, queue, args_dict)
@@ -1516,31 +1652,6 @@ class PocketManager:
                 except BusyError as err:
                     pass
                 # sleep(LOCAL_SLEEP)
-
-    def worker_naive(self, client_id, queue, args_dict):
-        raw_type = args_dict.pop('raw_type')
-
-        function_type = TFFunctions(raw_type)
-        reply_type = raw_type | 0x40000000
-
-        # debug(function_type, client_id, args_dict)
-        client_id = args_dict.pop('client_id')
-        mem = args_dict.pop('mem')
-        cfs_quota_us = args_dict.pop('cfs_quota_us')
-        cfs_period_us =  args_dict.pop('cfs_period_us')
-        Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-
-        result, ret = tf_function_dict[function_type](client_id, **args_dict)
-
-        Utils.deduct_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-        return_dict = {'result': result}
-        if result == ReturnValue.OK.value:
-            return_dict.update({'actual_return_val': ret})
-        else:
-            return_dict.update(ret)
-        return_byte_obj = json.dumps(return_dict)
-
-        queue.send(return_byte_obj, type = reply_type)
 
     def worker_name(self, client_id, queue, args_dict):
         raw_type = args_dict.pop('raw_type')
@@ -1553,8 +1664,13 @@ class PocketManager:
         mem = args_dict.pop('mem')
         cfs_quota_us = args_dict.pop('cfs_quota_us')
         cfs_period_us =  args_dict.pop('cfs_period_us')
-        # debug('>>>func')
-        Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
+
+        # from time import time       ## test_code
+        # t1 = time()
+        # Utils.add_resource_daemon(client_id, mem, cfs_quota_us, cfs_period_us)
+        # t2 = time()
+
+        mem_transfer, cpu_transfer = Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
 
         if client_id in self.dict_clientid_to_modelname:
             model_name = self.dict_clientid_to_modelname[client_id]
@@ -1563,9 +1679,14 @@ class PocketManager:
         else:
             result, ret = tf_function_dict[function_type](client_id, **args_dict)
 
-        # result, ret = tf_function_dict[function_type](client_id, **args_dict)
+        Utils.deduct_resource(client_id, mem_transfer, cpu_transfer, cfs_period_us)
 
-        Utils.deduct_resource(client_id, mem, cfs_quota_us, cfs_period_us)
+        # ## test_code
+        # t3 = time()
+        # Utils.deduct_resource_daemon(client_id, mem, cfs_quota_us, cfs_period_us)
+        # t4 = time()
+        # debug(f'resource_reallocation={(t2-t1) + (t4-t3)}')
+
         return_dict = {'result': result}
         if result == ReturnValue.OK.value:
             return_dict.update({'actual_return_val': ret})
@@ -1574,115 +1695,6 @@ class PocketManager:
         return_byte_obj = json.dumps(return_dict)
 
         queue.send(return_byte_obj, type = reply_type)
-
-
-    # def worker(self, client_id, queue, args_dict):
-    #     if client_id in self.dict_clientid_to_modelname:
-    #         model_name = self.dict_clientid_to_modelname[client_id]
-    #         graph = self.dict_modelname_to_session[model_name]
-    #     else:
-    #         graph = self.default_graph
-    #     try: 
-    #         raw_type = args_dict.pop('raw_type')
-
-    #         function_type = TFFunctions(raw_type)
-    #         reply_type = raw_type | 0x40000000
-
-    #         # debug(function_type, client_id, args_dict)
-    #         granularity = args_dict.pop('granularity', 'conn')
-    #         if granularity == 'func':
-    #             client_id = args_dict.pop('client_id')
-    #             mem = args_dict.pop('mem')
-    #             cfs_quota_us = args_dict.pop('cfs_quota_us')
-    #             cfs_period_us =  args_dict.pop('cfs_period_us')
-    #             Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-
-    #         if function_type in IN_GRAPH:
-    #             t1 = time()
-    #             with graph.as_default():
-    #                 t2 = time()
-    #                 result, ret = tf_function_dict[function_type](client_id, **args_dict)
-    #                 t3 = time()
-    #             t4 = time()
-    #             debug(f'{function_type.name}: {(t2-t1)*1000:.6f}, {(t3-t2)*1000:.6f}, {(t4-t1)*1000:.6f}')
-    #         else:
-    #             # tf.config.experimental_run_functions_eagerly(True)
-    #             result, ret = tf_function_dict[function_type](client_id, **args_dict)
-                
-    #         if granularity == 'func':
-    #             Utils.deduct_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-    #         return_dict = {'result': result}
-    #         if result == ReturnValue.OK.value:
-    #             return_dict.update({'actual_return_val': ret})
-    #         else:
-    #             return_dict.update(ret)
-    #         # debug(f'\033[91mreturn_dict={return_dict}\033[0m')
-    #         return_byte_obj = json.dumps(return_dict)
-
-    #         queue.send(return_byte_obj, type = reply_type)
-
-    #     except Exception as e:
-    #         import traceback
-    #         tb = traceback.format_exc()
-    #         debug(tb)
-    #         from inspect import currentframe, getframeinfo, stack
-    #         frameinfo = getframeinfo(currentframe())
-    #         exception =  {'exception': e.__class__.__name__, 'message': str(e), 'filename':frameinfo.filename, 'lineno': frameinfo.lineno, 'function': stack()[0][3]}
-    #         debug(f'exception={exception}')
-
-    def worker_graph(self, client_id, queue, args_dict):
-        if client_id in self.dict_clientid_to_modelname:
-            model_name = self.dict_clientid_to_modelname[client_id]
-            graph = self.dict_modelname_to_session[model_name]
-        else:
-            graph = self.default_graph
-        try: 
-            raw_type = args_dict.pop('raw_type')
-
-            function_type = TFFunctions(raw_type)
-            reply_type = raw_type | 0x40000000
-
-            # debug(function_type, client_id, args_dict)
-            # granularity = args_dict.pop('granularity', 'conn')
-            # if granularity == 'func':
-            client_id = args_dict.pop('client_id')
-            mem = args_dict.pop('mem')
-            cfs_quota_us = args_dict.pop('cfs_quota_us')
-            cfs_period_us =  args_dict.pop('cfs_period_us')
-            Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-
-            if function_type in IN_GRAPH:
-                t1 = time()
-                with graph.as_default():
-                    t2 = time()
-                    result, ret = tf_function_dict[function_type](client_id, **args_dict)
-                    t3 = time()
-                t4 = time()
-                debug(f'{function_type.name}: {(t2-t1)*1000:.6f}, {(t3-t2)*1000:.6f}, {(t4-t1)*1000:.6f}')
-            else:
-                # tf.config.experimental_run_functions_eagerly(True)
-                result, ret = tf_function_dict[function_type](client_id, **args_dict)
-                
-            # if granularity == 'func':
-            Utils.deduct_resource(client_id, mem, cfs_quota_us, cfs_period_us)
-            return_dict = {'result': result}
-            if result == ReturnValue.OK.value:
-                return_dict.update({'actual_return_val': ret})
-            else:
-                return_dict.update(ret)
-            # debug(f'\033[91mreturn_dict={return_dict}\033[0m')
-            return_byte_obj = json.dumps(return_dict)
-
-            queue.send(return_byte_obj, type = reply_type)
-
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            debug(tb)
-            from inspect import currentframe, getframeinfo, stack
-            frameinfo = getframeinfo(currentframe())
-            exception =  {'exception': e.__class__.__name__, 'message': str(e), 'filename':frameinfo.filename, 'lineno': frameinfo.lineno, 'function': stack()[0][3]}
-            debug(f'exception={exception}')
 
     def add_client_queue(self, client_id, key):
         client_queue = MessageQueue(key)

@@ -48,7 +48,7 @@ import threading
 from enum import Enum
 from sysv_ipc import Semaphore, SharedMemory, MessageQueue, IPC_CREX
 
-
+from pocketmgr import PocketManager, Utils
 
 def offline_init():
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -61,7 +61,6 @@ def offline_init():
     with Model_Create_Lock:
         Global_Model_Dict['yolov3'] = ModelInfo('yolov3', 'server')
         Global_Model_Dict['yolov3'].set_done(yolo)
-
 
 def serve():
     # offline_init()
@@ -79,12 +78,22 @@ def serve():
 def finalize(signum, frame):
     # if 'cProfile' in dir():
     #     cProfile.create_stats()
-    sys.exit(0)
+    stat_dict = Utils.measure_resource_usage()
+    print('[resource_usage]', f'cputime.total={stat_dict.get("cputime.total", None)}')
+    print('[resource_usage]', f'cputime.user={stat_dict.get("cputime.user", None)}')
+    print('[resource_usage]', f'cputime.sys={stat_dict.get("cputime.sys", None)}')
+    print('[resource_usage]', f'memory.max_usage={stat_dict.get("memory.max_usage", None)}')
+    print('[resource_usage]', f'memory.memsw.max_usage={stat_dict.get("memory.memsw.max_usage", None)}')
+    print('[resource_usage]', f'memory.stat.pgfault={stat_dict.get("memory.stat.pgfault", None)}')
+    print('[resource_usage]', f'memory.stat.pgmajfault={stat_dict.get("memory.stat.pgmajfault", None)}')
+    print('[resource_usage]', f'memory.failcnt={stat_dict.get("memory.failcnt", None)}')
+    sys.stdout.flush()
+    os._exit(0)
 
-from pocketmgr import PocketManager
 if __name__ == '__main__':
     FLAGS(sys.argv)
-    signal.signal(signal.SIGINT, finalize)
+    # signal.signal(signal.SIGINT, finalize)
+    signal.signal(signal.SIGTERM, finalize)
 
     import subprocess, psutil
     cpu_sockets =  int(subprocess.check_output('cat /proc/cpuinfo | grep "physical id" | sort -u | wc -l', shell=True))

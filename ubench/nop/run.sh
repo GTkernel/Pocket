@@ -177,7 +177,9 @@ function generate_rand_num() {
 }
 
 function init() {
-    docker rm -f $(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}') > /dev/null 2>&1
+    local containers="$(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}')"
+    docker stop ${containers} > /dev/null 2>&1
+    docker wait ${containers}
     docker container prune --force
     sleep 3
     # docker network rm $NETWORK

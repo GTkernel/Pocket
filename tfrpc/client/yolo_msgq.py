@@ -45,6 +45,31 @@ class Utils:
                 return cid
 
     @staticmethod
+    def measure_resource_usage():
+        stat_dict = {}
+        with open('/sys/fs/cgroup/cpuacct/cpuacct.usage') as f:
+            stat_dict['cputime.total'] = f.read()
+        with open('/sys/fs/cgroup/cpuacct/cpuacct.usage_sys') as f:
+            stat_dict['cputime.sys'] = f.read()
+        with open('/sys/fs/cgroup/cpuacct/cpuacct.usage_user') as f:
+            stat_dict['cputime.user'] = str(int(stat_dict['cputime.total']) - int(stat_dict['cputime.sys']))
+        with open('/sys/fs/cgroup/memory/memory.max_usage_in_bytes') as f:
+            stat_dict['memory.max_usage'] = f.read()
+        with open('/sys/fs/cgroup/memory/memory.memsw.max_usage_in_bytes') as f:
+            stat_dict['memory.memsw.max_usage'] = f.read()
+        with open('/sys/fs/cgroup/memory/memory.failcnt') as f:
+            stat_dict['memory.failcnt'] = f.read()
+        with open('/sys/fs/cgroup/memory/memory.stat') as f:
+            for line in f:
+                if 'total_pgfault' in line:
+                    value = line.split()[-1]
+                    stat_dict['memory.stat.pgfault'] = value
+                elif 'total_pgmajfault' in line:
+                    value = line.split()[-1]
+                    stat_dict['memory.stat.pgmajfault'] = value
+        return stat_dict
+
+    @staticmethod
     def get_memory_limit():
         with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'r') as limit_in_bytes:
             memory_limit = int(limit_in_bytes.read().strip())
@@ -302,22 +327,9 @@ class PocketMessageChannel:
             from ctypes import CDLL
             CLONE_NEWIPC = 0x08000000
             CLONE_NEWPID = 0x20000000
-            self.pid = os.getpid()
             libc = CDLL('libc.so.6')
             libc.unshare(CLONE_NEWIPC)
-            libc.unshare(CLONE_NEWPID)
             t2 = time()
-
-            import subprocess
-
-            process = subprocess.run(['ps', 'aux'], check=True).stdout
-            print(process)
-            # stdout, notused = process.communicate()
-            # for line in stdout.splitlines():
-            #     pid, cmdline = line.split(' ', 1)
-            #     #Do whatever filtering and processing is needed
-            # import time 
-            # time.sleep(30)
 
             self.policy = self.parse_policy()
 
@@ -384,7 +396,6 @@ class PocketMessageChannel:
         reply_type = msg_type | 0x40000000         
 
         args_dict = {'client_id'    : PocketMessageChannel.client_id, 
-                     'pid'          : self.pid,
                      'key'          : key,
                      'mem'          : self.CONN_MEMORY_LIMIT_IN_BYTES,
                      'cfs_quota_us' : self.CONN_CPU_QUOTA_US,
