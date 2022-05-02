@@ -12,7 +12,8 @@ from time import time
 DIRPATH = os.path.dirname(os.path.realpath(__file__))
 # DIRPATH = '/'
 POCKETD_SOCKET_PATH = f'{DIRPATH}/tmp/pocketd.sock'
-DEBUG_POCKET_CLI = True if os.environ.get('DEBUG', 0) == 1 else False
+# DEBUG_POCKET_CLI = True
+DEBUG_POCKET_CLI = False
 
 
 class GlobalOption:
@@ -170,19 +171,19 @@ def pocket_run(args):
         log_dir = args.measure_latency
 
     if args.d:
-        if rusage_measure:
-            pass
-            command.append('-di')
-        if measure_latency:
-            pass
-        else:
-            command.append('-d')
+        # if rusage_measure:
+        #     pass
+        #     command.append('-di')
+        # if measure_latency:
+        #     pass
+        # else:
+        #     command.append('-d')
+        command.append('-d')
     if args.perf is not None:
         command.extend(['--cap-add', 'SYS_ADMIN'])
         command.extend(['--cap-add', 'IPC_LOCK'])
     command.extend(['--name', args.name])
     command.extend(['--ipc', f'container:{args.service}'])
-    command.extend(['--pid', f'container:{args.service}'])
     if args.network is not None:
         command.extend(['--network', args.network])
     if args.workdir is not None:
@@ -208,124 +209,31 @@ def pocket_run(args):
     if args.binary is not None:
         command.append(args.binary)
 
-    if measure_latency:
-        command.extend(args.command)
-        logging.debug(f'command={command}')
+    command.extend(args.command)
+    logging.debug(f'command={command}')
 
-        if DEBUG_POCKET_CLI:
-            # debug
-            try:
-                output = subprocess.check_output(command, stderr=subprocess.STDOUT).decode()
-                logging.debug(output)
-            except subprocess.CalledProcessError as e:
-                output = e.output.decode()
-                logging.debug(output)
-            # process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines = True)
-            # logging.debug(process.stdout)
-        else:
-            process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            # with open(f'{log_dir}/{args.name}.latency', 'w') as f:
-            #     elapsed_time = DockerUtils.get_elapsed_time(args.name)
-            #     f.write(elapsed_time)
-        return
-    elif rusage_measure:
-        # command.extend(args.command)
-        # process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # resource_gauge(args.name, log_dir)
+    if DEBUG_POCKET_CLI:
+        print(' '.join(command))
+        # try:
+        process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        print(process.stdout)
+        # except:
+        # # debug
+        # try:
+        #     output = subprocess.check_output(command, stderr=subprocess.STDOUT).decode()
+        #     logging.debug(output)
+        # except subprocess.CalledProcessError as e:
+        #     output = e.output.decode()
+        #     logging.debug(output)
+        # # process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines = True)
+        # # logging.debug(process.stdout)
+    else:
+        process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # with open(f'{log_dir}/{args.name}.latency', 'w') as f:
+        #     elapsed_time = DockerUtils.get_elapsed_time(args.name)
+        #     f.write(elapsed_time)
+    return
 
-        command.extend(['bash'])
-        process = subprocess.run(command, check=True, stderr=subprocess.STDOUT, stdout=subprocess.DEVNULL)
-
-
-        command = ['docker', 'exec', args.name]
-        command.extend(args.command)
-        logging.debug(command)
-
-        process = subprocess.run(command, check=True, stderr=subprocess.STDOUT, stdout=subprocess.DEVNULL)
-        # process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines = True)
-        # for line in process.stdout:
-        #     sys.stdout.write(str(line))
-
-        resource_gauge(args.name, log_dir)
-        DockerUtils.stop_container(args.name)
-        return
-    elif cprofile or perf:
-        command.extend(args.command)
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        return
-    else: #just run..
-        command.extend(args.command)
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        #for debug
-        # print(command)
-        # process = subprocess.run(command, check=True)
-        return
-    raise Exception('Should not come here')
-
-    # if args.command is not None:
-    #     if rusage_measure:
-    #         command.extend(['bash'])
-    #         logging.debug(f'command={command}')
-    #         process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    #         # pocketd.notify_start(args.name, args.service)
-
-    #         command = ['docker', 'exec', args.name]
-    #         # command.extend(['pwd'])
-    #         # command.extend(['ls', '-al'])
-    #         command.extend(args.command)
-    #         logging.debug(f'command={command}')
-    #         logging.debug(f'command={args.command}')
-    #         ## @@@@@@ end-to-end time
-    #         import shlex
-    #         tmp = ' '.join(command)
-    #         command = shlex.split(tmp, posix=True)
-
-    #         # process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-
-    #         process = subprocess.run(command, check=True)
-    #         logging.debug(f'stdout={process.stdout}')
-    #         logging.debug(f'stderr={process.stderr}')
-
-    #         # process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
-    #         # logging.debug('here?')
-    #         # for c in iter(lambda: process.stdout.read(1), b''): 
-    #         #     sys.stdout.buffer.write(c)
-    #         #
-    #         #  for line in process.stdout:
-    #         #     sys.stdout.write(str(line))
-    #         logging.debug('here again?')
-    #         resource_gauge(args.name, log_dir)
-    #         DockerUtils.remove_container(args.name)
-    #         sys.exit()
-
-    #     else: # resource measure none
-    #         command.extend(args.command)
-    #         # print(command)
-    #         # print(' '.join(command))
-    #         if global_option.debug:
-    #             process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
-    #             for line in process.stdout:
-    #                 sys.stdout.write(str(line))
-    #         else:
-    #             process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    # else:
-    #     logging.error('command must be provided!')
-    #     raise ValueError("No command was provided")
-
-    # # pocketd.notify_start(args.name, args.service)
-
-    # if rusage_measure:
-    #     command = ['docker', 'exec', args.name]
-    #     command.extend(args.command)
-    #     logging.debug(f'command={command}')
-    #     ## @@@@@@ end-to-end time
-    #     # process = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    #     process = subprocess.run(command, check=True)
-    #     logging.debug(f'stdout={process.stdout}')
-    #     logging.debug(f'stderr={process.stderr}')
-
-    #     resource_gauge(args.name, log_dir)
-    #     DockerUtils.remove_container(args.name)
 
 def pocket_wait(args):
     command = ['docker', 'wait']
@@ -463,7 +371,7 @@ def build_rusage_parser(parser):
     measure_parser.set_defaults(func=pocket_rusage_measure)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format = '[%(asctime)s, %(lineno)d|POCKET] %(message)s')
+    logging.basicConfig(level=logging.INFO, format = '[%(asctime)s, %(lineno)d|POCKET] %(message)s')
 
     parser = argparse.ArgumentParser(prog='Pocket',
                 usage='%(prog)s [options]',
@@ -483,7 +391,6 @@ if __name__ == '__main__':
     service_parser = subparsers.add_parser('service', help='run a service')
     run_parser = subparsers.add_parser('run', help='run a pocketized app')
     wait_parser = subparsers.add_parser('wait', help='wait until a specified app terminates')
-    rusage_parser = subparsers.add_parser('rusage', help='measure resource usage')
 
     if len(sys.argv) == 1:
         parser.parse_args(['--help'])
@@ -492,8 +399,6 @@ if __name__ == '__main__':
     build_service_parser(service_parser)
     build_run_parser(run_parser)
     build_wait_parser(wait_parser)
-    build_rusage_parser(rusage_parser)
-
 
     args = parser.parse_args()
     logging.debug(f'args={args}')

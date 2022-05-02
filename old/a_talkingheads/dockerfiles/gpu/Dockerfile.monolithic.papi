@@ -1,0 +1,20 @@
+FROM tensorflow/tensorflow:2.1.0-gpu-py3
+
+ARG DOCKERVERSION=19.03.12
+RUN apt-get update -y --fix-missing && \
+    apt install -y git wget time && \
+    python3 -m pip install numpy && \
+    python3 -m pip install --upgrade pip && \
+    python3 -m pip install absl-py && \
+    python3 -m pip install sysv_ipc && \
+    python3 -m pip install psutil && \
+    python3 -m pip install python_papi && \
+    pip install -q -U tensorflow-text && \
+    pip install -q tensorflow-hub && \
+    pip install -q tf-models-official && \
+    mkdir -p /dataset/imdb && \
+    wget https://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz -P /dataset/imdb && \
+    cd /dataset/imdb && \
+    tar -xf aclImdb_v1.tar.gz && \
+    rm -f aclImdb_v1.tar.gz && \
+    apt-get install -y linux-tools-common linux-tools-generic linux-tools-`uname -r`

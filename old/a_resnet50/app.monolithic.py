@@ -1,0 +1,184 @@
+from time import time
+# https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a
+# imagenet index label
+import os, sys
+import tensorflow as tf
+import numpy as np
+import logging
+import argparse
+sys.path.insert(0, '/root/')
+CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+COCO_DIR = '/root/coco2017'
+# IMG_FILE = '000000581206.jpg' # Hot dogs
+# IMG_FILE = '000000578967.jpg' # Train
+IMG_FILE = '000000093965.jpg' # zebra
+# IMG_FILE = '000000104424.jpg' # a woman with a tennis racket
+# IMG_FILE = '000000292446.jpg' # pizza
+CLASS_LABLES_FILE = 'imagenet1000_clsidx_to_labels.txt'
+CLASSES = {}
+MODEL: tf.keras.applications.ResNet50
+
+def configs():
+    global IMG_FILE
+    logging.basicConfig(level=logging.DEBUG, \
+                        format='[%(asctime)s, %(lineno)d %(funcName)s | ResNet50] %(message)s')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image', default=IMG_FILE)
+    parsed_args = parser.parse_args()
+    IMG_FILE = parsed_args.image
+
+    import subprocess, psutil
+    cpu_sockets =  int(subprocess.check_output('cat /proc/cpuinfo | grep "physical id" | sort -u | wc -l', shell=True))
+    phy_cores = int(psutil.cpu_count(logical=False)/cpu_sockets)
+    print(cpu_sockets, phy_cores)
+
+    tf.config.threading.set_inter_op_parallelism_threads(cpu_sockets) # num of sockets: 2
+    tf.config.threading.set_intra_op_parallelism_threads(phy_cores) # num of phy cores: 12
+    os.environ['OMP_NUM_THREADS'] = str(phy_cores)
+    os.environ['KMP_AFFINITY'] = 'granularity=fine,verbose,compact,1,0'
+
+
+def load_classes():
+    with open(CLASS_LABLES_FILE) as file:
+        raw_labels = file.read().replace('{', '').replace('}', '').split('\n')
+        for line in raw_labels:
+            key, value = line.split(':')
+            value = value.replace('\'', '').strip()
+            if value[-1] is ',':
+                value = value[:-1]
+
+            CLASSES[int(key)] = value
+
+def build_model():
+    global MODEL
+
+    MODEL = tf.keras.applications.ResNet50(input_shape = (224, 224, 3),
+                                              include_top = True,
+                                              weights = 'imagenet')
+
+def build_model_mobilenetv2():
+    global MODEL
+
+    MODEL = tf.keras.applications.MobileNetV2(input_shape = (224, 224, 3),
+                                              include_top = True,
+                                              weights = 'imagenet')
+
+def _preprocess_numpy_input(x, data_format, mode):
+    """Preprocesses a Numpy array encoding a batch of images.
+    Args:
+        x: Input array, 3D or 4D.
+        data_format: Data format of the image array.
+        mode: One of "caffe", "tf" or "torch".
+        - caffe: will convert the images from RGB to BGR,
+            then will zero-center each color channel with
+            respect to the ImageNet dataset,
+            without scaling.
+        - tf: will scale pixels between -1 and 1,
+            sample-wise.
+        - torch: will scale pixels between 0 and 1 and then
+            will normalize each channel with respect to the
+            ImageNet dataset.
+    Returns:
+        Preprocessed Numpy array.
+    """
+    if not issubclass(x.dtype.type, np.floating):
+        # x = x.astype(backend.floatx(), copy=False)
+        x = x.astype('float32', copy=False)
+
+    # if mode == 'tf':
+    #     x /= 127.5
+    #     x -= 1.
+    #     return x
+    # elif mode == 'torch':
+    #     x /= 255.
+    #     mean = [0.485, 0.456, 0.406]
+    #     std = [0.229, 0.224, 0.225]
+    # else:
+
+    if data_format == 'channels_first':
+        # 'RGB'->'BGR'
+        if x.ndim == 3:
+            x = x[::-1, ...]
+        else:
+            x = x[:, ::-1, ...]
+    else:
+        # 'RGB'->'BGR'
+        x = x[..., ::-1]
+    mean = [103.939, 116.779, 123.68]
+    std = None
+
+    # Zero-center by mean pixel
+    if data_format == 'channels_first':
+        if x.ndim == 3:
+            x[0, :, :] -= mean[0]
+            x[1, :, :] -= mean[1]
+            x[2, :, :] -= mean[2]
+            if std is not None:
+                x[0, :, :] /= std[0]
+                x[1, :, :] /= std[1]
+                x[2, :, :] /= std[2]
+        else:
+            x[:, 0, :, :] -= mean[0]
+            x[:, 1, :, :] -= mean[1]
+            x[:, 2, :, :] -= mean[2]
+            if std is not None:
+                x[:, 0, :, :] /= std[0]
+                x[:, 1, :, :] /= std[1]
+                x[:, 2, :, :] /= std[2]
+    else:
+        x[..., 0] -= mean[0]
+        x[..., 1] -= mean[1]
+        x[..., 2] -= mean[2]
+        if std is not None:
+            x[..., 0] /= std[0]
+            x[..., 1] /= std[1]
+            x[..., 2] /= std[2]
+    return x
+
+def resize_image(file):
+    path = os.path.join(COCO_DIR, file)
+    # image = tf.keras.preprocessing.image.load_img(path, target_size=(224, 224))
+    image = tf.image.decode_image(open(path, 'rb').read())
+    image = tf.image.resize(image, (224, 224))
+    image = tf.keras.preprocessing.image.img_to_array(image)
+    image = tf.expand_dims(image, axis=0)
+    image = tf.keras.applications.resnet50.preprocess_input(image)
+    return image
+
+def resize_image_mobilenetv2(file):
+    path = os.path.join(COCO_DIR, file)
+    image = tf.image.decode_image(open(path, 'rb').read())
+    image = tf.image.resize(image, (224, 224))
+    image = tf.reshape(image, (1, image.shape[0], image.shape[1], image.shape[2]))
+    return image
+
+if __name__ == '__main__':
+    configs()
+    load_classes()
+
+    s = time()
+    build_model()
+    e = time()
+    logging.info(f'graph_construction_time={e-s}')
+    image = resize_image(IMG_FILE)
+    s = time()
+    for i in range(10):
+        result = MODEL(image)
+    e = time()
+    logging.info(f'inference_time={e-s}')
+    cls = np.argmax(result)
+    logging.info(f'{CLASSES[cls]}')
+
+
+    # s = time()
+    # build_model_mobilenetv2()
+    # e = time()
+    # logging.info(f'graph_construction_time={e-s}')
+    # image = resize_image_mobilenetv2(IMG_FILE)
+    # s = time()
+    # for i in range(10):
+    #     result = MODEL(image)
+    # e = time()
+    # logging.info(f'inference_time={e-s}')
+    # cls = np.argmax(result)
+    # logging.info(f'{CLASSES[cls]}')
