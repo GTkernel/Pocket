@@ -4,6 +4,8 @@ SCRIPTDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )/.
 SCRIPT=${SCRIPTDIR}/exp_script.sh
 APPLICATIONS=(mobilenetv2 resnet50 ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
 NUMINSTANCES=2
+DEVICE=cpu
+ITERATION=1
 
 mkdir -p "${SCRIPTDIR}"/tmp
 trap "exit 0" TERM
@@ -35,6 +37,12 @@ function parse_arg() {
             --help)
                 help
                 ;;
+            -i=*|--iteration=*)
+                ITERATION=${arg#*=}
+                ;;
+            -d=*|--device=*)
+                DEVICE=${arg#*=}
+                ;;
             *)
                 echo No such argument: ${arg}
                 ;;
@@ -55,4 +63,4 @@ function parse() {
     echo "Implement postprocessing the output"
 }
 
-main "$@"; exit
+main "$@"; echo \(DONE, time=$(date)\); exit

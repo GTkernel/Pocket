@@ -27,6 +27,9 @@ CLASS_LABLES_FILE = 'imagenet1000_clsidx_to_labels.txt'
 CLASSES = {}
 MODEL: TFDataType.Model
 msgq = PocketMessageChannel.get_instance()
+from PIL import Image
+
+e = None
 
 def configs():
     global IMG_FILE
@@ -56,26 +59,28 @@ def build_model():
 
 def resize_image(file):
     path = os.path.join(COCO_DIR, file)
-    image = msgq.tf_image_decode__image(open(path, 'rb').read()) / 255
-    image = msgq.tf_image_resize(image, (224, 224))
-    image = msgq.tf_reshape(image, (1, image.shape[0], image.shape[1], image.shape[2]))
-    return image
+    image = Image.open(path)
+    image = image.resize((224, 224))
+    return np.array(image).reshape((1, 224, 224, 3)).astype(np.float32)
 
-def finalize():
+def finalize(signum, frame):
     # if 'cProfile' in dir():
     #     cProfile.create_stats()
+    # e.set()
     stat_dict = Utils.measure_resource_usage()
-    print('[resource_usage]', f'cputime.total={stat_dict.get("cputime.total", None)}')
-    print('[resource_usage]', f'cputime.user={stat_dict.get("cputime.user", None)}')
-    print('[resource_usage]', f'cputime.sys={stat_dict.get("cputime.sys", None)}')
-    print('[resource_usage]', f'memory.max_usage={stat_dict.get("memory.max_usage", None)}')
-    print('[resource_usage]', f'memory.memsw.max_usage={stat_dict.get("memory.memsw.max_usage", None)}')
-    print('[resource_usage]', f'memory.stat.pgfault={stat_dict.get("memory.stat.pgfault", None)}')
-    print('[resource_usage]', f'memory.stat.pgmajfault={stat_dict.get("memory.stat.pgmajfault", None)}')
-    print('[resource_usage]', f'memory.failcnt={stat_dict.get("memory.failcnt", None)}')
+    print('[resource_usage]', f'cputime.total={stat_dict.get("cputime.total", None)}'.strip())
+    print('[resource_usage]', f'cputime.user={stat_dict.get("cputime.user", None)}'.strip())
+    print('[resource_usage]', f'cputime.sys={stat_dict.get("cputime.sys", None)}'.strip())
+    print('[resource_usage]', f'memory.max_usage={stat_dict.get("memory.max_usage", None)}'.strip())
+    print('[resource_usage]', f'memory.memsw.max_usage={stat_dict.get("memory.memsw.max_usage", None)}'.strip())
+    print('[resource_usage]', f'memory.stat.pgfault={stat_dict.get("memory.stat.pgfault", None)}'.strip())
+    print('[resource_usage]', f'memory.stat.pgmajfault={stat_dict.get("memory.stat.pgmajfault", None)}'.strip())
+    print('[resource_usage]', f'memory.failcnt={stat_dict.get("memory.failcnt", None)}'.strip())
     sys.stdout.flush()
+    # print('hello')
     os._exit(0)
 
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, finalize)
-    Event().wait()
+    e = Event()
+    e.wait()

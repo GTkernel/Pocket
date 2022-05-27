@@ -2,7 +2,9 @@
 
 BASEDIR=$(dirname $0)
 POCKET="../pocket/pocket"
+CC_POCKET_EXPERIMENT=0
 APPLICATION=ssdresnet50v1
+APPLICATIONS=()
 APPDIR=ssdresnet50v1_640x640
 cd $BASEDIR
 NUMINSTANCES=1
@@ -12,6 +14,8 @@ RSRC_RATIO=0.5
 RSRC_REALLOC=1
 EVENTSET=0
 RUSAGE_MEASURE=0
+RESOURCE_CONFIG_FILE=resource_config
+TF_SERVER=1
 
 SUBNETMASK=111.222.0.0/16
 SERVER_IP=111.222.3.26
@@ -28,7 +32,24 @@ POCKET_CPU_POLICY='func,ratio,0.8'      #
 # POCKET_MEM_POLICY='conn,ratio,0.8'      # (func/conn, ratio/minimum/none)
 # POCKET_CPU_POLICY='conn,ratio,0.8'      #
 
+# with get_app_value
+if [[ "$DEVICE" = "cpu" ]]; then
+    POCKET_FE_MEM_PRESET=(1 0.125 0.25 0.25 0.5 0.25 0.5)
+    POCKET_FE_CPU_PRESET=(1 1.3 1.3 1.3 1.3 1.7 1.7)
+    POCKET_BE_MEM_PRESET=(1 0.4 1.1 1.1 0.9 2.2 1.4)
+    POCKET_BE_MEM_SWAP_PRESET=(1 1.6 4.4 4.4 8.8 5.6)
+    POCKET_BE_CPU_PRESET=(1 1 1 1 1 2 2.5)
 
+    MONOLITHIC_MEM_PRESET=(1 0.3 1 1 0.9 2.2 1.3)
+    MONOLITHIC_CPU_PRESET=(1 1.5 1.5 1.5 1.5 2 2)
+else
+# currently same as cpu.. todo: update.
+    POCKET_FE_MEM_PRESET=(1 0.125 0.25 0.25 0.5 0.25 0.5)
+    POCKET_FE_CPU_PRESET=(1 1.3 1.3 1.3 1.3 1.7 1.7)
+    POCKET_BE_MEM_PRESET=(1 0.4 1.1 1.1 0.9 2.2 1.4)
+    POCKET_BE_MEM_SWAP_PRESET=(1 1.6 4.4 4.4 8.8 5.6)
+    POCKET_BE_CPU_PRESET=(1 1 1 1 1 2 2.5)
+fi
 
 function parse_arg(){
     for arg in $@; do
@@ -97,6 +118,18 @@ function parse_arg(){
                 APPLICATION="${arg#*=}"
                 APPDIR=$(get_application_dir $APPLICATION)
                 ;;
+            --resource-config=*)
+                RESOURCE_CONFIG_FILE="${arg#*=}"
+                ;;
+            --apps=*)
+                IFS=',' read -r -a APPLICATIONS <<< "${arg#*=}"
+                ;;
+            --tf-server=*)
+                TF_SERVER="${arg#*=}"
+                ;;
+            --cpu-multiplier=*)
+                CPU_MULTIPLIER="${arg#*=}"
+                ;;
             *)
                 echo Unknown argument: ${arg}
                 ;;
@@ -119,6 +152,41 @@ function utils_get_container_id() {
     echo $id
 }
 
+function get_max_be_mem() {
+    local sum=0.25
+    for app in ${APPLICATIONS[@]}; do
+        local model_size=0
+        case $app in
+            mobilenetv2)
+                model_size=0.2
+                ;;
+            resnet50)
+                model_size=0.45
+                ;;
+            ssdmobilenetv2)
+                model_size=0.82
+                ;;
+            ssdresnet50v1)
+                model_size=1.3
+                ;;
+            smallbert)
+                model_size=0.75
+                ;;
+            talkingheads)
+                model_size=2
+                ;;
+            *)
+                echo no such model: $app
+                exit -1
+                ;;
+        esac
+        sum=$(bc <<< "$sum + $model_size ")
+    done
+    local less_than_1=$(bc <<< "$sum < 1")
+    sum=$([[ $less_than_1 = "1" ]] && echo 0$sum || echo $sum)
+    echo $sum
+}
+
 function get_application_dir() {
     local app=$1
     case $app in
@@ -139,6 +207,74 @@ function get_application_dir() {
             ;;
         ssdresnet50v1)
             echo ssdresnet50v1_640x640
+            ;;
+        *)
+            echo No such application!
+            exit -1
+            ;;
+    esac
+}
+
+function get_largest_app() {
+    local max_value=0
+    for app in ${APPLICATIONS[@]}; do
+        local app_value=$(get_app_value ${app})
+        if [[ ${app_value} -gt ${max_value} ]]; then
+            max_value=${app_value}
+        fi
+    done
+    max_app=$(value_to_app $max_value)
+    echo $max_app
+}
+
+function get_app_value() {
+    local app_name=$1
+    case $app_name in
+        mobilenetv2)
+            echo 1
+            ;;
+        resnet50)
+            echo 2
+            ;;
+        smallbert)
+            echo 3
+            ;;
+        talkingheads)
+            echo 5
+            ;;
+        ssdmobilenetv2)
+            echo 4
+            ;;
+        ssdresnet50v1)
+            echo 6
+            ;;
+        *)
+            echo No such application!
+            exit -1
+            ;;
+    esac
+}
+
+function value_to_app() {
+    local app_value=$1
+    case $app_value in
+        1)
+            echo mobilenetv2
+            ;;
+        2)
+            echo resnet50
+            ;;
+        3)
+            echo smallbert
+            ;;
+        5)
+            echo talkingheads
+            ;;
+        4)
+            echo ssdmobilenetv2
+            ;;
+        6)
+            echo ssdresnet50v1
             ;;
         *)
             echo No such application!
@@ -180,6 +316,82 @@ function run_server_basic() {
         --volume=$(pwd)/../r_resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server.py
+        # --volume=$(pwd -P)/../scripts/sockets:/sockets \ ## needed for gRPC.
+        # --volume $(pwd -P)/../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \ ## needed for pocket with daemon
+}
+
+function run_server_isolation_config() {
+    local server_container_name=$1
+    local server_ip=$2
+    local server_image=$3
+    local isolation_config=''
+    IFS=',' read -r -a isolation_config <<< $4
+    local nscreate=off
+    local private_queue=off
+    local acl=off
+
+    for iso_config in ${isolation_config[@]}; do
+        case $iso_config in
+            ns)
+                nscreate=on
+                ;;
+            pq)
+                private_queue=on
+                ;;
+            acl)
+                acl=on
+                ;;
+        esac
+    done
+
+    eval docker run \
+        -d \
+        --privileged "${GPUS}" \
+        --name=$server_container_name \
+        --workdir='/root' \
+        --env YOLO_SERVER=1 \
+        --env NSCREATE=$nscreate \
+        --env CAPABILITIESLIST=$acl \
+        --env PRIVATEQUEUE=$private_queue \
+        --ip=$server_ip \
+        --ipc=shareable \
+        --cpus=$POCKET_BE_CPU \
+        --memory=$POCKET_BE_MEM \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
+        --volume $(pwd -P)/../applications/${APPDIR}/data:/data \
+        --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
+        --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
+        --volume=/sys/fs/cgroup/:/cg \
+        --volume=$(pwd)/../r_resources/models:/models \
+        $server_image \
+        python tfrpc/server/yolo_server_isolation.py
+        # --volume=$(pwd -P)/../scripts/sockets:/sockets \ ## needed for gRPC.
+        # --volume $(pwd -P)/../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \ ## needed for pocket with daemon
+}
+
+function run_server_nop() {
+    local server_container_name=$1
+    local server_ip=$2
+    local server_image=$3
+    eval docker run \
+        -d \
+        --privileged "${GPUS}" \
+        --name=$server_container_name \
+        --workdir='/root' \
+        --env YOLO_SERVER=1 \
+        --env TF_SERVER=${TF_SERVER} \
+        --ip=$server_ip \
+        --ipc=shareable \
+        --cpus=$POCKET_BE_CPU \
+        --memory=$POCKET_BE_MEM \
+        --memory-swap=$POCKET_BE_MEM_SWAP \
+        --volume $(pwd -P)/../applications/${APPDIR}/data:/data \
+        --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
+        --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
+        --volume=/sys/fs/cgroup/:/cg \
+        --volume=$(pwd)/../r_resources/models:/models \
+        $server_image \
+        python tfrpc/server/nop_server.py
         # --volume=$(pwd -P)/../scripts/sockets:/sockets \ ## needed for gRPC.
         # --volume $(pwd -P)/../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \ ## needed for pocket with daemon
 }
@@ -286,9 +498,43 @@ function run_server_perf() {
 function init() {
     docker rm -f $(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}') > /dev/null 2>&1
     docker container prune --force > /dev/null 2>&1
+
+    if [[ ${#APPLICATIONS[@]} != 0 ]]; then
+        APPLICATION=$(get_largest_app)
+        APPDIR=$(get_application_dir $APPLICATION)
+    fi
+
     mkdir -p ../applications/$APPDIR/data
 
-    source ../applications/$APPDIR/resource_config.sh $DEVICE
+    if [[ ! -f ../applications/$APPDIR/"${RESOURCE_CONFIG_FILE}".sh ]]; then
+        # echo [W] config file ($APPDIR/"${RESOURCE_CONFIG_FILE}".sh) does not exist. Switching it back to the default one.
+        echo [W] config file $APPDIR/"${RESOURCE_CONFIG_FILE}".sh does not exist. Switching it back to the default one.
+        RESOURCE_CONFIG_FILE=resource_config
+    fi
+
+    if [[ ${#APPLICATIONS[@]} != 0 ]]; then
+        local maxappnum=$(get_app_value $APPLICATION)
+        echo app=$APPLICATION
+        echo maxappnum=$maxappnum
+        POCKET_BE_CPU=${POCKET_BE_CPU_PRESET[$maxappnum]}
+        # POCKET_BE_MEM=${POCKET_BE_MEM_PRESET[$maxappnum]}
+        POCKET_BE_MEM=$(get_max_be_mem)
+        POCKET_BE_MEM_SWAP=$(bc <<< "$POCKET_BE_MEM * 4")
+        POCKET_BE_MEM=${POCKET_BE_MEM}gb
+        POCKET_BE_MEM_SWAP=${POCKET_BE_MEM_SWAP}gb
+
+        POCKET_FE_CPU="To be defined in the experiment loop"
+        POCKET_FE_MEM="To be defined in the experiment loop"
+    else
+        source ../applications/$APPDIR/"${RESOURCE_CONFIG_FILE}".sh $DEVICE
+    fi
+
+    if [[ ! -z $CPU_MULTIPLIER ]]; then
+        POCKET_FE_CPU=$(bc <<< "$CPU_MULTIPLIER * $POCKET_FE_CPU")
+        if [[ $POCKET_FE_CPU = "."* ]]; then
+            POCKET_FE_CPU=0${POCKET_FE_CPU}
+        fi
+    fi
 
     echo DEVICE=$DEVICE
     echo POCKET_FE_CPU=$POCKET_FE_CPU
@@ -298,6 +544,22 @@ function init() {
     echo POCKET_BE_MEM_SWAP=$POCKET_BE_MEM_SWAP
     echo MONOLITHIC_CPU=$MONOLITHIC_CPU
     echo MONOLITHIC_MEM=$MONOLITHIC_MEM
+
+    # CC_POCKET_EXPERIMENT=$([[ $USER = "cc" ]] && echo 1 || echo 0)
+    # if [[ $CC_POCKET_EXPERIMENT = "1" ]]; then
+    #     CPUSET_CPUS=$(lscpu | grep -F "On-line CPU(s) list:" | cut -d' ' -f4)
+    #     CPUSET_MEMS=$CPUSET_CPUS
+    #     CPUSET_CPU_EXCLUSIVE=0
+    #     CPUSET_MEM_EXCLUSIVE=0
+    #     DOCKER_CPUS=$(lscpu | grep -F "NUMA node1 CPU(s):" | cut -d' ' -f4)
+    #     # DOCKER_CPUS=0-47
+
+    #     echo $DOCKER_CPUS | sudo tee /sys/fs/cgroup/cpuset/docker/cpuset.cpus
+    #     echo $DOCKER_CPUS | sudo tee /sys/fs/cgroup/cpuset/docker/cpuset.mems
+    #     echo 1 | sudo tee /sys/fs/cgroup/cpuset/docker/cpuset.cpu_exclusive
+    #     echo 1 | sudo tee /sys/fs/cgroup/cpuset/docker/cpuset.mem_exclusive
+    # fi
+
 
     # docker network rm $NETWORK
     # docker network create --driver=bridge --subnet=$SUBNETMASK $NETWORK
@@ -433,6 +695,265 @@ function measure_latency() {
     fi
 }
 
+function measure_latency_varying_policy() {
+    local numinstances=$1
+    local server_container_name=pocket-server-001
+    local server_image=pocket-${APPLICATION}-${DEVICE}-server
+
+    init
+
+    run_server_basic $server_container_name $SERVER_IP $server_image
+    sleep 7
+
+    ${POCKET} \
+        run \
+            -d \
+            -b pocket-${APPLICATION}-${DEVICE}-application \
+            -t pocket-client-0000 \
+            -s ${server_container_name} \
+            --cpus=5 \
+            --memory=$(bc <<< '1024 * 2')mb \
+            --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+            --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+            --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+            --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+            --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+            --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+            --env POCKET_MEM_POLICY=func,ratio,0.8 \
+            --env POCKET_CPU_POLICY=func,ratio,0.8 \
+            --env CONTAINER_ID=pocket-client-0000 \
+            --workdir="/root/${APPLICATION}" \
+            -- python3 app.pocket.py
+
+    sleep 5
+    ${POCKET} \
+        wait pocket-client-0000 > /dev/null 2>&1
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${APPLICATION}-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --cpus=$POCKET_FE_CPU \
+                --memory=$POCKET_FE_MEM \
+                --oom-kill-disable \
+                --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --workdir="/root/${APPLICATION}" \
+                -- python3 app.pocket.varying_policy.py
+        interval=$(generate_rand_num 3)
+        sleep $interval
+    done
+# varying_policy
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        timeout 5m ${POCKET} \
+            wait pocket-client-${index} > /dev/null 2>&1
+        docker stop pocket-client-${index} > /dev/null 2>&1
+    done
+
+    # # For debugging
+    # docker logs pocket-server-001
+    # docker logs -f pocket-client-$(printf "%04d" $numinstances)
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+        docker logs $container_name 2>&1 | grep "inference_time"
+    done
+
+    if [[ $RUSAGE_MEASURE -eq 1 ]]; then
+        docker stop ${server_container_name} > /dev/null 2>&1
+        docker wait ${server_container_name} > /dev/null 2>&1
+        docker logs ${server_container_name} 2>&1 | grep -F "[resource_usage]"
+        for i in $(seq 1 $numinstances); do
+            local index=$(printf "%04d" $i)
+            local container_name=pocket-client-${index}
+            docker logs $container_name 2>&1 | grep -F "[resource_usage]"
+        done
+    fi
+}
+
+function mix() {
+    local numinstances=$1
+    local server_container_name=pocket-server-001
+    local server_image=pocket-${APPLICATION}-${DEVICE}-server
+
+    init
+
+    run_server_basic $server_container_name $SERVER_IP $server_image
+    sleep 7
+    echo APPLICATIONS=\(${APPLICATIONS[@]}\)
+    for app in ${APPLICATIONS[@]}; do
+        local appdir="$(get_application_dir $app)"
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${app}-${DEVICE}-application \
+                -t pocket-client-${app}-0000 \
+                -s ${server_container_name} \
+                --cpus=5 \
+                --memory=$(bc <<< '1024 * 2')mb \
+                --volume=$(pwd -P)/../applications/${appdir}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${appdir}:/root/${app} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=func,ratio,0.8 \
+                --env POCKET_CPU_POLICY=func,ratio,0.8 \
+                --env CONTAINER_ID=pocket-client-0000 \
+                --workdir="/root/${app}" \
+                -- python3 app.pocket.py
+
+        sleep 5
+        ${POCKET} \
+            wait pocket-client-${app}-0000 > /dev/null 2>&1
+    done
+
+    for i in $(seq 1 $numinstances); do
+        for app in ${APPLICATIONS[@]}; do
+            local appdir="$(get_application_dir $app)"
+            local index=$(printf "%04d" $i)
+            local container_name=pocket-client-${app}-${index}
+            local appnum="$(get_app_value $app)"
+
+            ${POCKET} \
+                run \
+                    -d \
+                    -b pocket-${app}-${DEVICE}-application \
+                    -t ${container_name} \
+                    -s ${server_container_name} \
+                    --cpus=${POCKET_FE_CPU_PRESET[$appnum]} \
+                    --memory=${POCKET_FE_MEM_PRESET[$appnum]}gb \
+                    --volume=$(pwd -P)/../applications/${appdir}/data:/data \
+                    --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                    --volume=$(pwd -P)/../applications/${appdir}:/root/${app} \
+                    --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                    --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                    --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                    --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                    --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                    --env CONTAINER_ID=${container_name} \
+                    --workdir="/root/${app}" \
+                    -- python3 app.pocket.py
+            interval=$(generate_rand_num 3)
+            sleep $interval
+        done
+    done
+
+    for i in $(seq 1 $numinstances); do
+        for app in ${APPLICATIONS[@]}; do
+            local appdir="$(get_application_dir $app)"
+            local index=$(printf "%04d" $i)
+            ${POCKET} \
+                wait pocket-client-${app}-${index} > /dev/null 2>&1
+        done
+    done
+
+    # # For debugging
+    # docker logs pocket-server-001
+    # docker logs -f pocket-client-$(printf "%04d" $numinstances)
+
+    for i in $(seq 1 $numinstances); do
+        for app in ${APPLICATIONS[@]}; do
+            local appdir="$(get_application_dir $app)"
+            local index=$(printf "%04d" $i)
+            local container_name=pocket-client-${app}-${index}
+            docker logs $container_name 2>&1 | grep "inference_time"
+        done
+    done
+
+    if [[ $RUSAGE_MEASURE -eq 1 ]]; then
+        docker stop ${server_container_name} > /dev/null 2>&1
+        docker wait ${server_container_name} > /dev/null 2>&1
+        docker logs ${server_container_name} 2>&1 | grep -F "[resource_usage]"
+        for i in $(seq 1 $numinstances); do
+            for app in ${APPLICATIONS[@]}; do
+                local appdir="$(get_application_dir $app)"
+                local index=$(printf "%04d" $i)
+                local container_name=pocket-client-${app}-${index}
+                docker logs $container_name 2>&1 | grep -F "[resource_usage]"
+            done
+        done
+    fi
+}
+
+function mix_monolithic() {
+    local numinstances=$1
+
+    init
+    echo APPLICATIONS=\(${APPLICATIONS[@]}\)
+
+    for i in $(seq 1 $numinstances); do
+        for app in ${APPLICATIONS[@]}; do
+            local appdir="$(get_application_dir $app)"
+            local index=$(printf "%04d" $i)
+            local container_name=${app}-monolithic-${index}
+            local appnum="$(get_app_value $app)"
+
+            eval docker \
+                run \
+                    -d "${GPUS}" \
+                    --name ${container_name} \
+                    --cpus=${MONOLITHIC_CPU_PRESET[$appnum]} \
+                    --memory=${MONOLITHIC_MEM_PRESET[$appnum]}gb \
+                    --volume=$(pwd -P)/../applications/${appdir}/data:/data \
+                    --volume=$(pwd -P)/../applications/${appdir}:/root/${app} \
+                    --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                    --volume=$(pwd)/../r_resources/models:/models \
+                    --workdir=/root/${app} \
+                    pocket-${app}-${DEVICE}-monolithic \
+                    python3 app.monolithic.py
+                interval=$(generate_rand_num 3)
+                sleep $interval
+        done
+    done
+
+    for i in $(seq 1 $numinstances); do
+        for app in ${APPLICATIONS[@]}; do
+            local index=$(printf "%04d" $i)
+            local container_name=${app}-monolithic-${index}
+
+            docker wait "${container_name}" > /dev/null 2>&1
+        done
+    done
+
+    # # For debugging
+    # docker logs pocket-server-001
+    # docker logs -f pocket-client-$(printf "%04d" $numinstances)
+
+    for i in $(seq 1 $numinstances); do
+        for app in ${APPLICATIONS[@]}; do
+            local index=$(printf "%04d" $i)
+            local container_name=${app}-monolithic-${index}
+            docker logs $container_name 2>&1 | grep "inference_time"
+        done
+    done
+
+    if [[ $RUSAGE_MEASURE -eq 1 ]]; then
+        for i in $(seq 1 $numinstances); do
+            for app in ${APPLICATIONS[@]}; do
+                local index=$(printf "%04d" $i)
+                local container_name=${app}-monolithic-${index}
+                docker logs $container_name 2>&1 | grep -F "[resource_usage]"
+            done
+        done
+    fi
+}
+
 function nop() {
     local numinstances=$1
     local server_container_name=pocket-server-001
@@ -440,7 +961,7 @@ function nop() {
 
     init
 
-    run_server_basic $server_container_name $SERVER_IP $server_image
+    run_server_nop $server_container_name $SERVER_IP $server_image
     sleep 7
 
     ${POCKET} \
@@ -461,7 +982,11 @@ function nop() {
             --env POCKET_CPU_POLICY=func,ratio,0.8 \
             --env CONTAINER_ID=pocket-client-0000 \
             --workdir="/root/mobilenetv2" \
-            -- python3 app.pocket.py
+            -- python3 app.pocket.nop.py
+
+    sleep 3
+
+    docker stop pocket-client-0000 > /dev/null 2>&1
 
     sleep 5
     ${POCKET} \
@@ -610,6 +1135,350 @@ function measure_exec_breakdown() {
         local container_name=pocket-client-${index}
         docker logs $container_name 2>&1 | grep "fe_ratio"
     done
+}
+
+function evaluate_isolation() {
+    local numinstances=$1
+    local server_container_name=pocket-server-001
+    local server_image=pocket-${APPLICATION}-${DEVICE}-server
+
+    ## test namespace creation.
+    init
+    run_server_nop $server_container_name $SERVER_IP $server_image
+    sleep 7
+
+    local container_name=pocket-client-nscreation
+    ${POCKET} \
+        run \
+            -d \
+            -b pocket-mobilenetv2-${DEVICE}-application \
+            -t ${container_name} \
+            -s ${server_container_name} \
+            --cpus=$POCKET_FE_CPU \
+            --memory=$POCKET_FE_MEM \
+            --volume=$(pwd -P)/../applications/mobilenetv2/data:/data \
+            --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+            --volume=$(pwd -P)/../applications/mobilenetv2:/root/mobilenetv2 \
+            --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+            --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+            --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+            --env POCKET_MEM_POLICY=func,ratio,0.8 \
+            --env POCKET_CPU_POLICY=func,ratio,0.8 \
+            --env CONTAINER_ID=${container_name} \
+            --workdir="/root/mobilenetv2" \
+            -- python3 app.pocket.nop.py
+    sleep 3
+    docker stop ${container_name} > /dev/null 2>&1
+    sleep 5
+    ${POCKET} \
+        wait ${container_name} > /dev/null 2>&1
+
+    docker logs ${container_name} | grep 'namespace_creation'
+
+
+    # config: all, all off, all but ns, all but private queue, all but acl
+    # local literal_config=(all_but_ns all_but_acls)
+    # local actual_config=("pq,acl" "ns,pq")
+    # for i in $(seq 0 1); do
+    local literal_config=(all_on all_off all_but_ns all_but_pq all_but_acls)
+    local actual_config=("ns,pq,acl" "" "pq,acl" "ns,acl" "ns,pq")
+    for i in $(seq 0 4); do
+        local isolation_config=${actual_config[i]}
+        local nscreate=$([[ "$isolation_config" == *"ns"* ]] && echo on || echo off)
+        local privatequeue=$([[ "$isolation_config" == *"pq"* ]] && echo on || echo off)
+        local acl=$([[ "$isolation_config" == *"acl"* ]] && echo on || echo off)
+
+        # echo misun nscreate=$nscreate privatequeue=$privatequeue acl=$acl
+
+        init
+
+        run_server_isolation_config $server_container_name $SERVER_IP $server_image $isolation_config
+        sleep 7
+
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${APPLICATION}-${DEVICE}-application \
+                -t pocket-client-0000 \
+                -s ${server_container_name} \
+                --cpus=5 \
+                --memory=$(bc <<< '1024 * 2')mb \
+                --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=func,ratio,0.8 \
+                --env POCKET_CPU_POLICY=func,ratio,0.8 \
+                --env CONTAINER_ID=pocket-client-0000 \
+                --env NSCREATE=$nscreate \
+                --env PRIVATEQUEUE=$privatequeue \
+                --env CAPABILITIESLIST=$acl \
+                --workdir="/root/${APPLICATION}" \
+                -- python3 app.pocket.py
+
+        sleep 5
+        ${POCKET} \
+            wait pocket-client-0000 > /dev/null 2>&1
+        # docker logs pocket-client-0000
+        # docker logs pocket-server-001
+
+        local container_name=pocket-client-${literal_config[$i]}
+
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${APPLICATION}-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --cpus=$POCKET_FE_CPU \
+                --memory=$POCKET_FE_MEM \
+                --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --env NSCREATE=$nscreate \
+                --env PRIVATEQUEUE=$privatequeue \
+                --env CAPABILITIESLIST=$acl \
+                --workdir="/root/${APPLICATION}" \
+                -- python3 app.pocket.py
+        sleep 5
+
+        ${POCKET} \
+            wait ${container_name} > /dev/null 2>&1
+        local infer_time=$(docker logs ${container_name} 2>&1 | grep -F 'inference_time' | cut -d'=' -f2)
+        # docker logs pocket-client-all_on
+        # docker attach pocket-client-all_on
+        docker rm -f ${container_name}
+        
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${APPLICATION}-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --cpus=$POCKET_FE_CPU \
+                --memory=$POCKET_FE_MEM \
+                --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --env NSCREATE=$nscreate \
+                --env PRIVATEQUEUE=$privatequeue \
+                --workdir="/root/${APPLICATION}" \
+                -- python3 app.pocket.hello.py
+        sleep 5
+
+        ${POCKET} \
+            wait ${container_name} > /dev/null 2>&1
+        local null_rtt=$(docker logs ${container_name} 2>&1 | grep -F 'null_rtt' | cut -d'=' -f2)
+
+        echo [isolation] ${literal_config[$i]} infer ${infer_time} null_rtt ${null_rtt}
+    done
+}
+
+function evaluate_resource_amplification_null() {
+    local numinstances=$1
+    local server_container_name=pocket-server-001
+    local server_image=pocket-${APPLICATION}-${DEVICE}-server
+
+    init
+
+    run_server_basic $server_container_name $SERVER_IP $server_image
+    sleep 7
+
+    # ${POCKET} \
+    #     run \
+    #         -d \
+    #         -b pocket-${APPLICATION}-${DEVICE}-application \
+    #         -t pocket-client-0000 \
+    #         -s ${server_container_name} \
+    #         --cpus=5 \
+    #         --memory=$(bc <<< '1024 * 2')mb \
+    #         --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+    #         --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+    #         --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+    #         --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+    #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+    #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+    #         --env POCKET_MEM_POLICY=func,ratio,0.8 \
+    #         --env POCKET_CPU_POLICY=func,ratio,0.8 \
+    #         --env CONTAINER_ID=pocket-client-0000 \
+    #         --workdir="/root/${APPLICATION}" \
+    #         -- python3 app.pocket.py
+
+    # sleep 5
+    # ${POCKET} \
+    #     wait pocket-client-0000 > /dev/null 2>&1
+
+    local pocket_fe_mem=$(echo "${POCKET_FE_MEM_PRESET[1]} * 1024 / 2.5" | bc)mb
+    echo \<result\> ${POCKET_FE_MEM_PRESET[1]}
+    echo \<result\> $pocket_fe_mem
+
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${APPLICATION}-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --cpus=$POCKET_FE_CPU \
+                --memory=$pocket_fe_mem \
+                --oom-kill-disable \
+                --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --workdir="/root/${APPLICATION}" \
+                -- python3 app.pocket.eval.resource.py
+        interval=$(generate_rand_num 3)
+        sleep $interval
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        ${POCKET} \
+            wait pocket-client-${index} > /dev/null 2>&1
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+        docker logs $container_name 2>&1 | grep -F '<result>'
+    done
+
+    # oomkiller turn off
+
+    # sudo sh -c 'echo 1 > /sys/fs/cgroup/memory/docker/memory.oom_control'
+
+    # fe_mem \= 10 # squeeze the memory
+
+    # for i in $(seq $numinstances); do
+    #     docker logs $pocket off | grep 'preprocessing_time'
+    #     docker logs $static on | grep 'preprocessing_time'
+    # done
+    # for i in $(seq $numinstances); do
+    #     docker logs $pocket off | grep 'inference_time'
+    #     docker logs $static on | grep 'inference_time'
+    # done
+    # for i in $(seq $numinstances); do
+    #     docker logs $pocket off | grep 'postprocessing_time'
+    #     docker logs $static on | grep 'postprocessing_time'
+    # done
+}
+
+function evaluate_resource_amplification() {
+    local numinstances=$1
+    local server_container_name=pocket-server-001
+    local server_image=pocket-${APPLICATION}-${DEVICE}-server
+
+    init
+
+    run_server_basic $server_container_name $SERVER_IP $server_image
+    sleep 7
+
+    ${POCKET} \
+        run \
+            -d \
+            -b pocket-${APPLICATION}-${DEVICE}-application \
+            -t pocket-client-0000 \
+            -s ${server_container_name} \
+            --cpus=5 \
+            --memory=$(bc <<< '1024 * 2')mb \
+            --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+            --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+            --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+            --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+            --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+            --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+            --env POCKET_MEM_POLICY=func,ratio,0.8 \
+            --env POCKET_CPU_POLICY=func,ratio,0.8 \
+            --env CONTAINER_ID=pocket-client-0000 \
+            --workdir="/root/${APPLICATION}" \
+            -- python3 app.pocket.py
+
+    sleep 5
+    ${POCKET} \
+        wait pocket-client-0000 > /dev/null 2>&1
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+
+        ${POCKET} \
+            run \
+                -d \
+                -b pocket-${APPLICATION}-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --cpus=$POCKET_FE_CPU \
+                --memory=$POCKET_FE_MEM \
+                --oom-kill-disable \
+                --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
+                --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
+                --volume=$(pwd -P)/../r_resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --workdir="/root/${APPLICATION}" \
+                -- python3 app.pocket.eval.resource.realapp.py
+        interval=$(generate_rand_num 3)
+        sleep $interval
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        ${POCKET} \
+            wait pocket-client-${index} > /dev/null 2>&1
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+        docker logs $container_name 2>&1 | grep -F '<result>'
+    done
+
+    # oomkiller turn off
+
+    # sudo sh -c 'echo 1 > /sys/fs/cgroup/memory/docker/memory.oom_control'
+
+    # fe_mem \= 10 # squeeze the memory
+
+    # for i in $(seq $numinstances); do
+    #     docker logs $pocket off | grep 'preprocessing_time'
+    #     docker logs $static on | grep 'preprocessing_time'
+    # done
+    # for i in $(seq $numinstances); do
+    #     docker logs $pocket off | grep 'inference_time'
+    #     docker logs $static on | grep 'inference_time'
+    # done
+    # for i in $(seq $numinstances); do
+    #     docker logs $pocket off | grep 'postprocessing_time'
+    #     docker logs $static on | grep 'postprocessing_time'
+    # done
 }
 
 
@@ -1227,6 +2096,15 @@ function measure_perf() {
     docker logs -f pocket-client-$(printf "%04d" $numinstances)
 }
 
+function finalize() {
+    if [[ $MULTISOCKET = "1" ]]; then
+        echo $CPUSET_CPUS > /sys/fs/cgroup/cpuset/docker/cpuset.cpus
+        echo $CPUSET_MEMS > /sys/fs/cgroup/cpuset/docker/cpuset.mems
+        echo $CPUSET_CPU_EXCLUSIVE > /sys/fs/cgroup/cpuset/docker/cpuset.cpu_exclusive
+        echo $CPUSET_MEM_EXCLUSIVE > /sys/fs/cgroup/cpuset/docker/cpuset.mem_exclusive
+    fi
+}
+
 parse_arg ${@:2}
 echo '>>>>>>>POCKET_MEM_POLICY=' $POCKET_MEM_POLICY
 echo '>>>>>>>POCKET_CPU_POLICY=' $POCKET_CPU_POLICY
@@ -1242,11 +2120,29 @@ case $COMMAND in
     'latency-mon')
         measure_latency_monolithic $NUMINSTANCES
         ;;
+    'mix')
+        mix $NUMINSTANCES
+        ;;
+    'mix-mon')
+        mix_monolithic $NUMINSTANCES
+        ;;
+    'eval-iso')
+        evaluate_isolation $NUMINSTANCES
+        ;;
+    'eval-rsrc-null')
+        evaluate_resource_amplification_null $NUMINSTANCES
+        ;;
+    'eval-rsrc')
+        evaluate_resource_amplification $NUMINSTANCES
+        ;;
     'perf-mon')
         measure_perf_monolithic $NUMINSTANCES
         ;;
     'latency')
         measure_latency $NUMINSTANCES
+        ;;
+    'latency-varying-policy')
+        measure_latency_varying_policy $NUMINSTANCES
         ;;
     'measure-exec')
         measure_exec_breakdown $NUMINSTANCES
@@ -1274,3 +2170,5 @@ case $COMMAND in
         ;;
 
 esac
+
+# finalize

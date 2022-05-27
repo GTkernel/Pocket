@@ -1,7 +1,13 @@
 import subprocess
 import sys, os
 import gc
-import json
+try:
+    import ujson as json
+except ImportError:
+    try:
+        import simplejson as json
+    except ImportError:
+        import json
 import tensorflow as tf
 import numpy as np
 from absl import flags
@@ -29,6 +35,7 @@ GLOBAL_SLEEP = 0.01
 LOCAL_SLEEP = 0.0001
 POCKETD_SOCKET_PATH = '/tmp/pocketd.sock'
 DEVICE_LIST_AVAILABLE = False
+RETURN_OPTIM = True if os.environ.get('RETURN_OPTIM', 'on') == 'on' else False
 DEVICE_LIST = []
 ADD_INTERVAL = 0.01
 DEDUCT_INTERVAL = 0.01
@@ -470,8 +477,10 @@ class TensorFlowServer:
 
     @staticmethod
     def _noptest(client_id):
+    # def _noptest(client_id, memory_transferred):
         try:
-            # do nothing
+            # np.random.randint(0, memory_transferred, memory_transferred)
+            sleep(1)
             pass
         except Exception as e:
             import inspect
@@ -572,20 +581,21 @@ class TensorFlowServer:
                 return ReturnValue.OK.value, ret_list
             elif type(ret) is dict:
                 ret_dict = {} # optim 2 # todo: pseudo dict implementation needed. for object det
-                # s = time()
-                # for key, value in ret.items():
-                #     ret[key] = value.numpy().tolist()
-                # t1 = time()
-                # json_dumps = json.dumps(ret)
-                # t11 = time()
-                # json_converted = bytes(json_dumps, encoding='utf8')
-                # t2 = time()
-                # length = len(json_converted)
-                # t3 = time()
-                # # PocketManager.get_instance().shmem_dict[client_id].write(contents=json_converted) # optim 1
-                # ret_dict={'shmem': {'length':length}}
-                # e = time()
-                # print(f'\ttime={e-s}, {t1-s}, {t11-t1},{t2-t11}, {t3-t2}, {e-t3}')
+                if RETURN_OPTIM == False:
+                    s = time()
+                    for key, value in ret.items():
+                        ret[key] = value.numpy().tolist()
+                    t1 = time()
+                    json_dumps = json.dumps(ret)
+                    t11 = time()
+                    json_converted = bytes(json_dumps, encoding='utf8')
+                    t2 = time()
+                    length = len(json_converted)
+                    t3 = time()
+                    # PocketManager.get_instance().shmem_dict[client_id].write(contents=json_converted) # optim 1
+                    ret_dict={'shmem': {'length':length}}
+                    e = time()
+                    print(f'\ttime={e-s}, {t1-s}, {t11-t1},{t2-t11}, {t3-t2}, {e-t3}')
 
                 return ReturnValue.OK.value, ret_dict
 
@@ -1623,12 +1633,18 @@ class PocketManager:
             sleep(GLOBAL_SLEEP)
 
     def pocket_serving_client(self):
+        import sysv_ipc
         while True:
             for client_id, queue in self.queues_dict.copy().items():
                 try:
-                    if client_id in self.futures and not self.futures[client_id].done():
-                        continue
+                    # if client_id in self.futures and not self.futures[client_id].done():
+                    #     continue
+                    # try:
                     raw_msg, _ = queue.receive(block=False, type=CLIENT_TO_SERVER)
+                    # except Exception as e:
+                    #     print(e)
+                    #     print(f'client_id={client_id[:16]}, queue={queue}')
+                    #     sys.stdout.flush()
 
                     args_dict = json.loads(raw_msg)
 
@@ -1640,8 +1656,13 @@ class PocketManager:
                     # self.futures[client_id] = self.executor.submit(self.worker_name, client_id, queue, args_dict)
                     # self.worker_naive(client_id, queue, args_dict)
                     
-                except BusyError as err:
+                except BusyError as err1:
                     pass
+                except sysv_ipc.ExistentialError as err2:
+                    print(f'client_id={client_id}, queue={queue}')
+                    print('queue does not exist anymore..')
+                    print(self.queues_dict)
+
                 # sleep(LOCAL_SLEEP)
 
     def worker_name(self, client_id, queue, args_dict):
@@ -1663,12 +1684,16 @@ class PocketManager:
 
         mem_transfer, cpu_transfer = Utils.add_resource(client_id, mem, cfs_quota_us, cfs_period_us)
 
-        if client_id in self.dict_clientid_to_modelname:
-            model_name = self.dict_clientid_to_modelname[client_id]
-            with tf.name_scope(model_name) as scope:
-                result, ret = tf_function_dict[function_type](client_id, **args_dict)
+        # if client_id in self.dict_clientid_to_modelname:
+        #     model_name = self.dict_clientid_to_modelname[client_id]
+        #     with tf.name_scope(model_name) as scope:
+        #         result, ret = tf_function_dict[function_type](client_id, **args_dict)
+        # else:
+        if function_type == TensorFlowServer._noptest:
+            result, ret = tf_function_dict[function_type](client_id, mem_transfer)
         else:
             result, ret = tf_function_dict[function_type](client_id, **args_dict)
+        
 
         Utils.deduct_resource(client_id, mem_transfer, cpu_transfer, cfs_period_us)
 

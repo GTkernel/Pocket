@@ -58,6 +58,31 @@ class Utils:
         return int(math.ceil(f / 2.) * 2)
 
     @staticmethod
+    def measure_resource_usage():
+        stat_dict = {}
+        with open('/sys/fs/cgroup/cpuacct/cpuacct.usage') as f:
+            stat_dict['cputime.total'] = f.read()
+        with open('/sys/fs/cgroup/cpuacct/cpuacct.usage_sys') as f:
+            stat_dict['cputime.sys'] = f.read()
+        with open('/sys/fs/cgroup/cpuacct/cpuacct.usage_user') as f:
+            stat_dict['cputime.user'] = str(int(stat_dict['cputime.total']) - int(stat_dict['cputime.sys']))
+        with open('/sys/fs/cgroup/memory/memory.max_usage_in_bytes') as f:
+            stat_dict['memory.max_usage'] = f.read()
+        with open('/sys/fs/cgroup/memory/memory.memsw.max_usage_in_bytes') as f:
+            stat_dict['memory.memsw.max_usage'] = f.read()
+        with open('/sys/fs/cgroup/memory/memory.failcnt') as f:
+            stat_dict['memory.failcnt'] = f.read()
+        with open('/sys/fs/cgroup/memory/memory.stat') as f:
+            for line in f:
+                if 'total_pgfault' in line:
+                    value = line.split()[-1]
+                    stat_dict['memory.stat.pgfault'] = value
+                elif 'total_pgmajfault' in line:
+                    value = line.split()[-1]
+                    stat_dict['memory.stat.pgmajfault'] = value
+        return stat_dict
+
+    @staticmethod
     def get_memory_limit(client_id = None):
         if client_id != None:
             with open(f'/cg/memory/docker/{client_id}/memory.limit_in_bytes', 'r') as limit_in_bytes:
@@ -108,7 +133,6 @@ class Utils:
         with open(f'/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'r') as cfs_quota_us:
             cpu_numerator = float(cfs_quota_us.read().strip())
         return (cpu_numerator/cpu_denominator) * RSRC_REALLOC_RATIO, cpu_numerator, cpu_denominator
-
 
     @staticmethod
     def deduct_resource(client_id, mem, cfs_quota_us, cfs_period_us):
@@ -326,16 +350,16 @@ class Utils:
         MEM_SEM.release()
         CPU_SEM.release()
 
-yolo_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
-                         (59, 119), (116, 90), (156, 198), (373, 326)],
-                        np.float32) / 416
-yolo_anchor_masks = np.array([[6, 7, 8], [3, 4, 5], [0, 1, 2]])
+# yolo_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
+#                          (59, 119), (116, 90), (156, 198), (373, 326)],
+#                         np.float32) / 416
+# yolo_anchor_masks = np.array([[6, 7, 8], [3, 4, 5], [0, 1, 2]])
 
-# but don't delete
-flags.DEFINE_integer('yolo_max_boxes', 100,
-                     'maximum number of boxes per image')
-flags.DEFINE_float('yolo_iou_threshold', 0.5, 'iou threshold')
-flags.DEFINE_float('yolo_score_threshold', 0.5, 'score threshold')
+# # but don't delete
+# flags.DEFINE_integer('yolo_max_boxes', 100,
+#                      'maximum number of boxes per image')
+# flags.DEFINE_float('yolo_iou_threshold', 0.5, 'iou threshold')
+# flags.DEFINE_float('yolo_score_threshold', 0.5, 'score threshold')
 
 
 def stack_trace():

@@ -75,7 +75,7 @@ def preprocess_image(path):
     image = Image.open(path)
 
     (im_width, im_height) = image.size
-    return np.array(image.getdata()).reshape((1, im_height, im_width, 3)).astype(np.uint8)
+    return np.array(image).reshape((1, im_height, im_width, 3)).astype(np.uint8)
 
 if __name__ == '__main__':
     configs()

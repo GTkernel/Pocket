@@ -55,7 +55,7 @@ function run() {
     echo '    'APPLICATION=${app}
     for i in $(seq 1 $NUMINSTANCES); do
         echo '    ''    'NUMINSTANCES=$i
-        local max_memory=$(bash ${SCRIPT} nop -n=$i --policy=1 --device=cpu --rusage -a=$app | grep -F "memory.max_usage" | head -1)
+        local max_memory=$(bash ${SCRIPT} nop -n=$i --policy=1 --device=cpu --rusage -a=$app --tf-server=0 | grep -F "memory.max_usage" | head -1)
         echo '    ''    ''    'max_memory=${max_memory##*=}
         # max_memory_sum+=max_memory
     done
@@ -81,4 +81,4 @@ function parse() {
     echo "Implement postprocessing the output"
 }
 
-main "$@"; exit
+main "$@"; echo \(DONE, time=$(date)\); exit

@@ -2,6 +2,7 @@
 
 SCRIPTDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )/../scripts
 SCRIPT=${SCRIPTDIR}/exp_script.sh
+# APPLICATIONS=(ssdresnet50v1 talkingheads)
 APPLICATIONS=(mobilenetv2 resnet50 ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
 NUMINSTANCES=2
 
@@ -84,74 +85,62 @@ function parse() {
 }
 
 function measure_pocket() {
-    echo [NUMINSTANCES=$NUMINSTANCES]: pocket-dynamic
+    # echo [NUMINSTANCES=$NUMINSTANCES]: pocket-dynamic
     for app in ${APPLICATIONS[@]}; do
-        echo APPLICATION=$app
+        # echo APPLICATION=$app
         for n in $(seq $NUMINSTANCES); do
-            echo "    n=$n"
+            # echo "    n=$n"
             for i in $(seq $ITERATION); do
-                echo "        i=$i"
-                bash ${SCRIPT} latency -n=$NUMINSTANCES --policy=1 --device=${DEVICE} --rusage -a=${app}
-                echo
+                # echo "        i=$i"
+                echo \(platform=pocket, app=$app, iteration=$i, numinstances=$n\)
+                bash ${SCRIPT} latency -n=$n --policy=1 --device=${DEVICE} --rusage -a=${app}
             done
-            echo
         done
-        echo
     done
-    echo
 }
 
 function measure_static() {
-    echo [NUMINSTANCES=$NUMINSTANCES]: pocket-static
+    # echo [NUMINSTANCES=$NUMINSTANCES]: pocket-static
     for app in ${APPLICATIONS[@]}; do
-        echo APPLICATION=$app
+        # echo APPLICATION=$app
         for n in $(seq $NUMINSTANCES); do
-            echo "    n=$n"
+            # echo "    n=$n"
             for i in $(seq $ITERATION); do
-                echo "        i=$i"
-                bash ${SCRIPT} latency -n=$NUMINSTANCES --policy=4 --device=${DEVICE} --rusage -a=${app}
-                echo
+                # echo "        i=$i"
+                echo \(platform=pocket-static, app=$app, iteration=$i, numinstances=$n\)
+                bash ${SCRIPT} latency -n=$n --policy=4 --device=${DEVICE} --rusage -a=${app}
             done
-            echo
         done
-        echo
     done
-    echo
 }
 
 function measure_static_none() {
+    # echo [NUMINSTANCES=$NUMINSTANCES]: pocket-static-none
     for app in ${APPLICATIONS[@]}; do
-        echo APPLICATION=$app
+        # echo APPLICATION=$app
         for n in $(seq $NUMINSTANCES); do
-            echo "    n=$n"
+            # echo "    n=$n"
             for i in $(seq $ITERATION); do
-                echo "        i=$i"
-                bash ${SCRIPT} latency -n=$NUMINSTANCES --policy=3 --device=${DEVICE} --rusage -a=${app}
-                echo
+                # echo "        i=$i"
+                echo \(platform=pocket-static-none, app=$app, iteration=$i, numinstances=$n\)
+                bash ${SCRIPT} latency -n=$n --policy=3 --device=${DEVICE} --rusage -a=${app}
             done
-            echo
         done
-        echo
     done
-    echo
 }
 
 function measure_monolithic() {
-    echo [NUMINSTANCES=$NUMINSTANCES]: monolithic
     for app in ${APPLICATIONS[@]}; do
-        echo APPLICATION=$app
+        # echo APPLICATION=$app
         for n in $(seq $NUMINSTANCES); do
-            echo "    n=$n"
+            # echo "    n=$n"
             for i in $(seq $ITERATION); do
-                echo "        i=$i"
-                bash ${SCRIPT} latency-mon -n=$NUMINSTANCES --policy=3 --device=${DEVICE} --rusage -a=${app}
-                echo
+                # echo "        i=$i"
+                echo \(platform=monolithic, app=$app, iteration=$i, numinstances=$n\)
+                bash ${SCRIPT} latency-mon -n=$n --policy=3 --device=${DEVICE} --rusage -a=${app}
             done
-            echo
         done
-        echo
     done
-    echo
 }
 
-main "$@"; exit
+main "$@"; echo \(DONE, time=$(date)\); exit

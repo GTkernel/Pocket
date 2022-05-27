@@ -8,7 +8,17 @@ import argparse
 sys.path.insert(0, '/root/')
 sys.path.insert(0, '/root/tfrpc/client')
 from pocket_tf_if import TFDataType
-from yolo_msgq import PocketMessageChannel, Utils
+
+class IsolationControl:
+    NAMESPACE = True if os.environ.get('NSCREATE', 'on') == 'on' else False
+    PRIVATEQUEUE = True if os.environ.get('PRIVATEQUEUE', 'on') == 'on' else False
+    CAPABILITIESLIST = True if os.environ.get('CAPABILITIESLIST', 'on') == 'on' else False
+
+if not IsolationControl.NAMESPACE or not IsolationControl.PRIVATEQUEUE or not IsolationControl.CAPABILITIESLIST:
+    
+    from yolo_msgq_isolation import PocketMessageChannel, Utils
+else:
+    from yolo_msgq import PocketMessageChannel, Utils
 
 from time import time
 
@@ -76,7 +86,7 @@ def preprocess_image(path):
     image = Image.open(path)
 
     (im_width, im_height) = image.size
-    return np.array(image.getdata()).reshape((1, im_height, im_width, 3)).astype(np.uint8)
+    return np.array(image).reshape((1, im_height, im_width, 3)).astype(np.uint8)
 
 def finalize():
     # if 'cProfile' in dir():
@@ -109,6 +119,7 @@ if __name__ == '__main__':
         # if i % 3 == 0:
         #     image = preprocess_image(IMAGES_FOR_TEST[selected_image])
         results = MODEL(image)
+        print(results)
         # result = {key:np.array(value) for key,value in results.items()}
         # classes = [category_index[clazz]['name'] for clazz in result['detection_classes'][0].astype(int)]
         # scores = result['detection_scores'][0]

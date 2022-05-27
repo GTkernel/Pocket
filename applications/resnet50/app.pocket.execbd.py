@@ -25,6 +25,7 @@ CLASS_LABLES_FILE = 'imagenet1000_clsidx_to_labels.txt'
 CLASSES = {}
 MODEL: TFDataType.Model
 msgq = PocketMessageChannel.get_instance()
+from PIL import Image
 
 def configs():
     global IMG_FILE
@@ -66,22 +67,11 @@ def build_model():
                                                 include_top = True,
                                                 weights = 'imagenet')
 
-# def resize_image(file):
-#     path = os.path.join(COCO_DIR, file)
-#     image = msgq.tf_image_decode__image(open(path, 'rb').read()) / 255
-#     image = msgq.tf_image_resize(image, (224, 224))
-#     image = msgq.tf_reshape(image, (1, image.shape[0], image.shape[1], image.shape[2]))
-#     return image
-
 def resize_image(file):
     path = os.path.join(COCO_DIR, file)
-    image = msgq.tf_image_decode__image(open(path, 'rb').read())
-    image = msgq.tf_image_resize(image, (224, 224))
-    image = msgq.tf_keras_preprocessing_image_img__to__array(image)
-    image = msgq.tf_expand__dims(image, axis=0)
-    image = msgq.tf_keras_applications_resnet50_preprocess__input(image)
-
-    return image
+    image = Image.open(path)
+    image = image.resize((224, 224))
+    return np.array(image).reshape((1, 224, 224, 3)).astype(np.float32)
 
 def build_model_mobilenetv2():
     global MODEL

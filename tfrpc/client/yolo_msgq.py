@@ -8,10 +8,10 @@ import socket
 from sysv_ipc import MessageQueue, IPC_CREX
 from pocket_tf_if import NPArray, TFFunctions, PocketControl, ReturnValue, CLIENT_TO_SERVER, TFDataType, TFDtypes, SharedMemoryChannel, ResizeMethod, POCKET_CLIENT
 from time import sleep, time
-from collections import namedtuple
-
-
+# from collections import namedtuple
 import numpy as np
+
+
 
 def debug(*args):
     class bcolors:
@@ -201,10 +201,10 @@ class PocketDaemon:
         data_received = my_socket.recv(1024)
         # debug(f'data_received={data_received}')
         my_socket.close()
-        
 
 class PocketMessageChannel:
     universal_key = 0x1001
+    aux_key = 0x1002
     client_id = Utils.get_container_id()
     local_key = int(client_id[:8], 16)
     __instance = None
@@ -322,7 +322,7 @@ class PocketMessageChannel:
 
         else:
             ## Setns
-            from time import time
+                # from time import time
             t1 = time()
             from ctypes import CDLL
             CLONE_NEWIPC = 0x08000000
@@ -330,6 +330,7 @@ class PocketMessageChannel:
             libc = CDLL('libc.so.6')
             libc.unshare(CLONE_NEWIPC)
             t2 = time()
+            print(f'[isolation] namespace_creation={t2-t1}')
 
             self.policy = self.parse_policy()
 
@@ -391,7 +392,6 @@ class PocketMessageChannel:
     def conn(self, key):
         # create local queue
         self.lq = MessageQueue(key, IPC_CREX)
-
         msg_type = int(PocketControl.CONNECT)
         reply_type = msg_type | 0x40000000         
 

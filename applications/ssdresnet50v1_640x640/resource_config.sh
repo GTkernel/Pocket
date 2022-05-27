@@ -3,7 +3,7 @@
 DEVICE=$1
 
 if [[ "$DEVICE" = "cpu" ]]; then
-    POCKET_FE_CPU=1.8 # 1.8
+    POCKET_FE_CPU=1.7 # 1.8
     POCKET_FE_MEM=$(bc <<< '1024 * 0.5')mb
     POCKET_BE_CPU=2.5 # 1
     POCKET_BE_MEM=$(bc <<< '1024 * 1.4')mb

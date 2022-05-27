@@ -179,6 +179,8 @@ def pocket_run(args):
         # else:
         #     command.append('-d')
         command.append('-d')
+    if args.oom_kill_disable:
+        command.append('--oom-kill-disable')
     if args.perf is not None:
         command.extend(['--cap-add', 'SYS_ADMIN'])
         command.extend(['--cap-add', 'IPC_LOCK'])
@@ -315,6 +317,7 @@ def build_run_parser(parser):
     parser.add_argument('--perf', type=str)
     parser.add_argument('--measure-latency', type=str)
 
+    parser.add_argument('--oom-kill-disable', action='store_true')
     parser.add_argument('-d', action='store_true')
     parser.add_argument('-b', '--binary', type=str, required=True, help='an image to run')
     parser.add_argument('-t', '--name', type=str, required=True, help='a name of the application')
