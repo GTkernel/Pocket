@@ -50,7 +50,7 @@ function run() {
     docker rm -f $(docker ps -a | grep "server\|client" | awk '{print $1}') > /dev/null 2>&1
     docker network rm exp_net
     docker network create --driver=bridge exp_net
-
+    sleep 5
     
     docker run -d \
                --network=exp_net \
@@ -180,7 +180,16 @@ case $COMMAND in
         ;;
     run)
         build_proto
+        echo '>>>>' street.jpg $(du -sh imgs/street.jpg | awk '{ print $1 }')
         run /imgs/street.jpg
+        echo; echo '>>>>' manhattan_425_116.jpg $(du -sh imgs/manhattan_425_116.jpg | awk '{ print $1 }')
+        run /imgs/manhattan_425_116.jpg
+        echo; echo '>>>>' manhattan_850_436.jpg $(du -sh imgs/manhattan_850_436.jpg | awk '{ print $1 }')
+        run /imgs/manhattan_850_436.jpg
+        echo; echo '>>>>' manhattan_1275_940.jpg $(du -sh imgs/manhattan_1275_940.jpg | awk '{ print $1 }')
+        run /imgs/manhattan_1275_940.jpg
+        echo; echo '>>>>' manhattan_2790_2884.jpg $(du -sh imgs/manhattan_2790_2884.jpg | awk '{ print $1 }')
+        run /imgs/manhattan_2790_2884.jpg
         ;;
     run-large)
         build_proto

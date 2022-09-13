@@ -8,7 +8,7 @@ import subprocess
 import grpc
 import exp_pb2, exp_pb2_grpc
 from concurrent import futures
-import  json
+import  json, base64
 from sysv_ipc import MessageQueue, IPC_CREX, SharedMemory, Semaphore
 from enum import IntEnum
 
@@ -120,6 +120,7 @@ class PocketControl(IntEnum):
     DISCONNECT = 0x2
     HELLO = 0x3
     NOP = 0x4
+    SENDBINARY = 0x5
 
 CLIENT_TO_SERVER = 0x1
 SERVER_TO_CLIENT = 0x2
@@ -170,14 +171,66 @@ class PocketMessageChannel:
     def NOP(self):
         msg_type = int(PocketControl.NOP)
         reply_type = msg_type | 0x40000000
+        args_dict = {'client_id': PocketMessageChannel.client_id}
         args_dict = {'raw_type': msg_type}
         args_json = json.dumps(args_dict)
 
-        # start = time.time()
         self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
         raw_msg, _ = self.gq.receive(block=True, type=reply_type)
-        # end = time.time()
-        # logging.info(f'ipc_pure_rtt={end-start}')
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        start = time.time()
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        end = time.time()
+        logging.info(f'nop/ipc_pure_send={end-start:.10f}')
+        start = time.time()
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        end = time.time()
+        logging.info(f'nop/ipc_pure_receive={end-start:.10f}')
+        start = time.time()
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        end = time.time()
+        logging.info(f'nop/ipc_pure_rtt={end-start:.10f}')
+        
+        msg = json.loads(raw_msg)
+        return msg['result']
+
+    # control functions
+    # for debugging
+    def SendBinary(self, bin):
+        msg_type = int(PocketControl.SENDBINARY)
+        reply_type = msg_type | 0x40000000
+        args_dict = {'client_id': PocketMessageChannel.client_id}
+        args_dict = {'raw_type': msg_type}
+        args_dict['image_size'] = len(bin)
+        args_json = json.dumps(args_dict)
+        self.shmem.write(contents=b'misun_test')
+
+        self.shmem.write(contents=b'misun_test')
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        self.shmem.write(contents=b'misun_test')
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        
+        start = time.time()
+        self.shmem.write(contents=bin)
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        end = time.time()
+        logging.info(f'send_binary/ipc_pure_send={end-start:.10f}')
+        
+        start = time.time()
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        end = time.time()
+        logging.info(f'send_binary/ipc_pure_receive={end-start:.10f}')
+        
+        start = time.time()
+        self.shmem.write(contents=bin)
+        self.gq.send(args_json, block=True, type=CLIENT_TO_SERVER)
+        raw_msg, _ = self.gq.receive(block=True, type=reply_type)
+        end = time.time()
+        logging.info(f'send_binary/ipc_pure_rtt={end-start:.10f}')
         
         msg = json.loads(raw_msg)
         return msg['result']
@@ -304,6 +357,18 @@ class Experiments():
 
         return response
 
+    @staticmethod
+    def lIPCSendFile(msgq, bin):
+        request = exp_pb2.SendViaShmem_ExcludeIORequest()
+        response: exp_pb2.SendViaShmem_ExcludeIOResponse
+        
+        start = time.time()
+        response = msgq.SendBinary(bin)
+        end = time.time()
+        logging.info(f'rtt(lipc_nop)={end-start}')
+
+        return response
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--file', '-f', help='file path', type=str, required=True)
@@ -329,25 +394,27 @@ def main():
     returned_data = Experiments.Echo(stub, 'Hello Misun!')
     logging.info(f'returned_data={returned_data}')
 
-    Experiments.SendFilePath(stub, container_id, file) # path
+    # Experiments.SendFilePath(stub, container_id, file) # path
 
-    start = time.time()
+    # start = time.time()
     read_image = open(file, 'rb').read()
-    end = time.time()
-    logging.info(f'latency(file_io_client)={end-start}')
+    # end = time.time()
+    # logging.info(f'latency(file_io_client)={end-start}')
 
     Experiments.SendFileBinary(stub, read_image) # rpc
 
-    Experiments.ServerIOLatency(stub, container_id, file) # server io
+    # Experiments.ServerIOLatency(stub, container_id, file) # server io
 
-    Experiments.SendViaShmem(stub, file)
+    # Experiments.SendViaShmem(stub, file)
 
-    Experiments.SendViaShmem_ExcludeIO(stub, file)
+    # Experiments.SendViaShmem_ExcludeIO(stub, file)
 
     Experiments.gRPCNOP(stub)
 
     msgq = PocketMessageChannel.get_instance()
     Experiments.lIPCNOP(msgq)
+
+    Experiments.lIPCSendFile(msgq, read_image)
 
 
 if __name__ == '__main__':

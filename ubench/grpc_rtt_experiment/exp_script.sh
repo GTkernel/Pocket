@@ -177,9 +177,16 @@ case $COMMAND in
     proto)
         build_proto
         ;;
+    # run)
+    #     build_proto
+    #     run /imgs/street.jpg
+    #     ;;
     run)
         build_proto
-        run /imgs/street.jpg
+        run /imgs/manhattan_425_116.jpg
+        run /imgs/manhattan_850_436.jpg
+        run /imgs/manhattan_1275_940.jpg
+        run /imgs/manhattan_2790_2884.jpg
         ;;
     run-large)
         build_proto
@@ -195,7 +202,7 @@ case $COMMAND in
         init_tmpfs
         run_tmpfs
         ;;
-    generic-run)
+    # generic-run)
 
     *|help)
         help

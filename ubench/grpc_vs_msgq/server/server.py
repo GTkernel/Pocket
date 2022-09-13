@@ -110,6 +110,7 @@ class PocketControl(IntEnum):
     DISCONNECT = 0x2
     HELLO = 0x3
     NOP = 0x4
+    SENDBINARY = 0x5
 
 class ReturnValue(IntEnum):
     OK = 0
@@ -185,6 +186,11 @@ class PocketManager:
             elif type == PocketControl.NOP:
                 return_dict = {'result': ReturnValue.OK.value}
                 return_byte_obj = json.dumps(return_dict)
+                self.gq.send(return_byte_obj, type=reply_type)
+            elif type == PocketControl.SENDBINARY:
+                return_dict = {'result': ReturnValue.OK.value}
+                return_byte_obj = json.dumps(return_dict)
+                # self.gq.
                 self.gq.send(return_byte_obj, type=reply_type)
                 
             sleep(0.0001) ##### EXPRIMENTAL_PARAMETER: This need to be zero to get optimal results.
