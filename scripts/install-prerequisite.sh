@@ -54,8 +54,8 @@ function install_packages() {
 
 function download_coco_imageset() {
     wget http://images.cocodataset.org/zips/val2017.zip
-    mkdir -p ../r_resources/coco
-    unzip val2017.zip -d ../r_resources/coco
+    mkdir -p ../resources/coco
+    unzip val2017.zip -d ../resources/coco
     rm -f val2017.zip
 }
 

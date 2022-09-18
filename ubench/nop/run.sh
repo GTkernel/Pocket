@@ -79,7 +79,7 @@ function run_pocket_be() {
         --volume=$(pwd)/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../../r_resources/models:/models \
+        --volume=$(pwd)/../../resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server.py
 }
@@ -110,7 +110,7 @@ function run_pocket_app() {
     #         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
     #         --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
     #         --volume=$(pwd):/root/mobilenet \
-    #         --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+    #         --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env POCKET_MEM_POLICY=func,ratio,0.8 \

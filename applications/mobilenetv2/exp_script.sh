@@ -330,7 +330,7 @@ function measure_latency() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -360,7 +360,7 @@ function measure_latency() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -412,7 +412,7 @@ function measure_exec_breakdown() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -442,7 +442,7 @@ function measure_exec_breakdown() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -509,7 +509,7 @@ function measure_papi() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -537,7 +537,7 @@ function measure_papi() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -587,7 +587,7 @@ function measure_pf() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -617,7 +617,7 @@ function measure_pf() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -659,7 +659,7 @@ function measure_papi_monolithic() {
     #     --memory=$(bc <<< '1024 * 0.3')mb \
     #     --volume=$(pwd)/data:/data \
     #     --volume=$(pwd):/root/mobilenetv2 \
-    #     --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+    #     --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/mobilenetv2 \
     #     --cap-add CAP_SYS_ADMIN \
     #     --volume=$(pwd)/../tfrpc/server/papi:/papi \
@@ -680,7 +680,7 @@ function measure_papi_monolithic() {
                 --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/mobilenetv2 \
                 --cap-add CAP_SYS_ADMIN \
                 --volume=$(pwd)/../tfrpc/server/papi:/papi \
@@ -723,7 +723,7 @@ function measure_pf_monolithic() {
     #     --memory=$(bc <<< '1024 * 0.3')mb \
     #     --volume=$(pwd)/data:/data \
     #     --volume=$(pwd):/root/mobilenetv2 \
-    #     --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+    #     --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/mobilenetv2 \
     #     --env NUM=$NUMINSTANCES \
     #     pocket-mobilenet-${DEVICE}-monolithic-papi \
@@ -742,7 +742,7 @@ function measure_pf_monolithic() {
                 --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/mobilenetv2 \
                 --env NUM=$NUMINSTANCES \
                 pocket-mobilenet-${DEVICE}-monolithic-papi \
@@ -788,7 +788,7 @@ function measure_latency_monolithic() {
         --memory=$(bc <<< '1024 * 0.3')mb \
         --volume=$(pwd)/data:/data \
         --volume=$(pwd):/root/mobilenetv2 \
-        --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+        --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
         --workdir=/root/mobilenetv2 \
         pocket-mobilenet-${DEVICE}-monolithic \
         python3 app.monolithic.py >/dev/null 2>&1
@@ -808,7 +808,7 @@ function measure_latency_monolithic() {
                 --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/mobilenetv2 \
                 pocket-mobilenet-${DEVICE}-monolithic \
                 python3 app.monolithic.py
@@ -860,7 +860,7 @@ function measure_rusage_monolithic() {
             --memory=512mb \
             --volume=$(pwd)/data:/data \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --workdir=/root/mobilenetv2 \
             pocket-mobilenet-${DEVICE}-monolithic \
             bash
@@ -888,7 +888,7 @@ function measure_rusage_monolithic() {
                 --memory=512mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --workdir=/root/mobilenetv2 \
                 pocket-mobilenet-${DEVICE}-monolithic \
                 bash
@@ -945,7 +945,7 @@ function measure_perf_monolithic() {
             --memory=512mb \
             --volume=$(pwd)/data:/data \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --cap-add SYS_ADMIN \
             --cap-add IPC_LOCK \
             --workdir=/root/mobilenetv2 \
@@ -968,7 +968,7 @@ function measure_perf_monolithic() {
                 --memory=512mb \
                 --volume=$(pwd)/data:/data \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --cap-add SYS_ADMIN \
                 --cap-add IPC_LOCK \
                 --workdir=/root/mobilenetv2 \
@@ -1018,7 +1018,7 @@ function measure_rusage() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1053,7 +1053,7 @@ function measure_rusage() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -1104,7 +1104,7 @@ function measure_cprofile() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1134,7 +1134,7 @@ function measure_cprofile() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -1201,7 +1201,7 @@ function measure_perf() {
             --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd):/root/mobilenetv2 \
-            --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+            --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1234,7 +1234,7 @@ function measure_perf() {
                 --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd):/root/mobilenetv2 \
-                --volume="$(pwd -P)"/../r_resources/coco/val2017:/root/coco2017 \
+                --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
