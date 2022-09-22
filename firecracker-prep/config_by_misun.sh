@@ -22,7 +22,8 @@ function main( ){
     # install_firectl
     # test_firectl_minimal
     # # custom_rootfs_and_kernel 
-    custom_rootfs_and_kernel2 
+    custom_rootfs_and_kernel2
+    # test_firectl_all
 }
 
 function install_firectl() {
@@ -35,6 +36,17 @@ function install_firectl() {
 }
 
 function test_firectl_minimal() {
+    ./firectl/firectl \
+        --firecracker-binary=${FCROOT}/firecracker \
+        --kernel=hello-vmlinux.bin \
+        --root-drive=hello-rootfs.ext4 \
+        --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
+    # login: root/root
+    # stop: reboot or sigterm
+    # sudo kill -TERM $(pgrep -l firectl | awk '{ print $1 }')
+}
+
+function test_firectl_all() {
     ./firectl/firectl \
         --firecracker-binary=${FCROOT}/firecracker \
         --kernel=hello-vmlinux.bin \
@@ -92,7 +104,7 @@ function custom_rootfs_and_kernel2() {
     # # https://medium.com/@Pawlrus/making-a-custom-microvm-for-aws-firecracker-f22c761a6ceb
     # # https://github.com/anyfiddle/firecracker-rootfs-builder.git
 
-    git clone https://github.com/bkleiner/ubuntu-firecracker.git
+    # git clone https://github.com/bkleiner/ubuntu-firecracker.git
     cd ubuntu-firecracker
     
     # docker build -t ubuntu-firecracker .
@@ -101,11 +113,23 @@ function custom_rootfs_and_kernel2() {
     cp -R ${FCROOT}/../resources/obj_det_sample_img ${FCROOT}/ubuntu-firecracker/obj_det_sample_img
     cp ${FCROOT}/dockerfiles/* ${FCROOT}/ubuntu-firecracker
 
-    # apps=(mobilenetv2)
-    apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    apps=(mobilenetv2)
+    # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
     for app in ${apps[@]}; do
         docker image rm -f fc-${app}
-        docker build -t fc-${app} -f Dockerfile.${app} --cpu-shares=24 .
+        docker build -t fc-${app} -f Dockerfile.${app} --cpu-shares=24 --no-cache .
+        print_debug "Exporting ${app}"
+        docker run --privileged -it --rm -v $(pwd)/output:/output fc-${app}
+        cp output/vmlinux ubuntu-vmlinux
+        cp output/image.ext4 ubuntu-${app}.ext4
+        truncate -s 5G ubuntu.ext4
+        resize2fs ubuntu.ext4
+        print_info "Running ${app}"
+        ${FCROOT}/firectl/firectl \
+            --firecracker-binary=${FCROOT}/firecracker \
+            --kernel=ubuntu-vmlinux \
+            --root-drive=ubuntu-${app}.ext4 \
+            --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
     done
 
     # Clean up
