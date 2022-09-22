@@ -1,12 +1,12 @@
 #!/bin/bash
 
-BASEDIR=$(dirname $0)
+BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 POCKET="../pocket/pocket"
 CC_POCKET_EXPERIMENT=0
 APPLICATION=ssdresnet50v1
 APPLICATIONS=()
 APPDIR=ssdresnet50v1_640x640
-cd $BASEDIR
+cd ${BASEDIR}
 NUMINSTANCES=1
 TIMESTAMP=$(date +%Y%m%d-%H:%M:%S)
 INTERVAL=0
@@ -313,7 +313,7 @@ function run_server_basic() {
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server.py
         # --volume=$(pwd -P)/../scripts/sockets:/sockets \ ## needed for gRPC.
@@ -362,7 +362,7 @@ function run_server_isolation_config() {
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server_isolation.py
         # --volume=$(pwd -P)/../scripts/sockets:/sockets \ ## needed for gRPC.
@@ -389,7 +389,7 @@ function run_server_nop() {
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python tfrpc/server/nop_server.py
         # --volume=$(pwd -P)/../scripts/sockets:/sockets \ ## needed for gRPC.
@@ -415,7 +415,7 @@ function run_server_papi() {
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         --env EVENTSET=$EVENTSET \
         --env NUM=$NUMINSTANCES \
         $server_image \
@@ -441,7 +441,7 @@ function run_server_pf() {
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         --env NUM=$NUMINSTANCES \
         $server_image \
         python tfrpc/server/pf_server.py
@@ -467,7 +467,7 @@ function run_server_cProfile() {
         --volume $(pwd -P)/../applications/${APPDIR}/data:/data \
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python -m cProfile -o /data/${timestamp}-${numinstances}-cprofile/${server_container_name}.cprofile tfrpc/server/yolo_server.py
 }
@@ -490,7 +490,7 @@ function run_server_perf() {
         --volume $(pwd -P)/../applications/${APPDIR}/data:/data \
         --volume=$(pwd -P)/../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd -P)/../yolov3-tf2:/root/yolov3-tf2 \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server.py
 }
@@ -579,7 +579,7 @@ function help() {
 }
 
 function build_docker_files() {
-    cp -R ../resources/obj_det_sample_img ../applications/${APPDIR}/dockerfiles/${DEVICE}
+    cp -R ${BASEDIR}/../../resources/obj_det_sample_img ../applications/${APPDIR}/dockerfiles/${DEVICE}
 
     docker rmi -f pocket-${APPLICATION}-${DEVICE}-monolithic-perf
     docker image build --no-cache -t pocket-${APPLICATION}-${DEVICE}-monolithic-perf -f ../applications/${APPDIR}/dockerfiles/${DEVICE}/Dockerfile.monolithic.perf ../applications/${APPDIR}/dockerfiles/${DEVICE}
@@ -627,7 +627,7 @@ function measure_latency() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -655,7 +655,7 @@ function measure_latency() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -716,7 +716,7 @@ function measure_latency_varying_policy() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -745,7 +745,7 @@ function measure_latency_varying_policy() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -809,7 +809,7 @@ function mix() {
                 --volume=$(pwd -P)/../applications/${appdir}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${appdir}:/root/${app} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -841,7 +841,7 @@ function mix() {
                     --volume=$(pwd -P)/../applications/${appdir}/data:/data \
                     --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                     --volume=$(pwd -P)/../applications/${appdir}:/root/${app} \
-                    --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                    --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                     --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                     --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                     --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -912,8 +912,8 @@ function mix_monolithic() {
                     --memory=${MONOLITHIC_MEM_PRESET[$appnum]}gb \
                     --volume=$(pwd -P)/../applications/${appdir}/data:/data \
                     --volume=$(pwd -P)/../applications/${appdir}:/root/${app} \
-                    --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
-                    --volume=$(pwd)/../resources/models:/models \
+                    --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                    --volume=${BASEDIR}/../../resources/models:/models \
                     --workdir=/root/${app} \
                     pocket-${app}-${DEVICE}-monolithic \
                     python3 app.monolithic.py
@@ -975,7 +975,7 @@ function nop() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/mobilenetv2 \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -1007,7 +1007,7 @@ function nop() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/mobilenetv2 \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1069,7 +1069,7 @@ function measure_exec_breakdown() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -1097,7 +1097,7 @@ function measure_exec_breakdown() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1159,7 +1159,7 @@ function evaluate_isolation() {
             --volume=$(pwd -P)/../applications/mobilenetv2/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/mobilenetv2:/root/mobilenetv2 \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -1206,7 +1206,7 @@ function evaluate_isolation() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -1237,7 +1237,7 @@ function evaluate_isolation() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1268,7 +1268,7 @@ function evaluate_isolation() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1309,7 +1309,7 @@ function evaluate_resource_amplification_null() {
     #         --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
     #         --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
     #         --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-    #         --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+    #         --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -1343,7 +1343,7 @@ function evaluate_resource_amplification_null() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1408,7 +1408,7 @@ function evaluate_resource_amplification() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -1437,7 +1437,7 @@ function evaluate_resource_amplification() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1505,8 +1505,8 @@ function measure_latency_monolithic() {
         --memory=$MONOLITHIC_MEM \
         --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
         --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-        --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
-        --volume=$(pwd)/../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+        --volume=${BASEDIR}/../../resources/models:/models \
         --workdir=/root/${APPLICATION} \
         pocket-${APPLICATION}-${DEVICE}-monolithic \
         python3 app.monolithic.py >/dev/null 2>&1
@@ -1526,8 +1526,8 @@ function measure_latency_monolithic() {
                 --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
-                --volume=$(pwd)/../resources/models:/models \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/models:/models \
                 --workdir=/root/${APPLICATION} \
                 pocket-${APPLICATION}-${DEVICE}-monolithic \
                 python3 app.monolithic.py
@@ -1599,7 +1599,7 @@ function measure_papi() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1628,7 +1628,7 @@ function measure_papi() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1669,7 +1669,7 @@ function measure_pf() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1698,7 +1698,7 @@ function measure_pf() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
@@ -1735,7 +1735,7 @@ function measure_papi_monolithic() {
                 # --memory=$(bc <<< '1024 * 1.3')mb \
     #     --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
     #     --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-    #     --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+    #     --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/${APPLICATION} \
     #     --cap-add CAP_SYS_ADMIN \
     #     --volume=$(pwd -P)/../tfrpc/server/papi:/papi \
@@ -1756,8 +1756,8 @@ function measure_papi_monolithic() {
                 --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
-                --volume=$(pwd)/../resources/models:/models \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/models:/models \
                 --workdir=/root/${APPLICATION} \
                 --cap-add CAP_SYS_ADMIN \
                 --volume=$(pwd -P)/../tfrpc/server/papi:/papi \
@@ -1800,7 +1800,7 @@ function measure_pf_monolithic() {
                 # --memory=$(bc <<< '1024 * 1.3')mb \
     #     --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
     #     --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-    #     --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+    #     --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
     #     --workdir=/root/${APPLICATION} \
     #     --env NUM=$NUMINSTANCES \
     #     pocket-${APPLICATION}-${DEVICE}-monolithic-papi \
@@ -1819,8 +1819,8 @@ function measure_pf_monolithic() {
                 --memory=$MONOLITHIC_MEM \
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
-                --volume=$(pwd)/../resources/models:/models \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/models:/models \
                 --workdir=/root/${APPLICATION} \
                 --env NUM=$NUMINSTANCES \
                 pocket-${APPLICATION}-${DEVICE}-monolithic-papi \
@@ -1866,7 +1866,7 @@ function measure_perf_monolithic() {
             --memory=512mb \
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --cap-add SYS_ADMIN \
             --cap-add IPC_LOCK \
             --workdir=/root/${APPLICATION} \
@@ -1889,7 +1889,7 @@ function measure_perf_monolithic() {
                 --memory=512mb \
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --cap-add SYS_ADMIN \
                 --cap-add IPC_LOCK \
                 --workdir=/root/${APPLICATION} \
@@ -1936,7 +1936,7 @@ function measure_cprofile() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
             --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1965,7 +1965,7 @@ function measure_cprofile() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -2030,7 +2030,7 @@ function measure_perf() {
             --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
             --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-            --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -2064,7 +2064,7 @@ function measure_perf() {
                 --volume=$(pwd -P)/../applications/${APPDIR}/data:/data \
                 --volume=$(pwd -P)/../tfrpc/client:/root/tfrpc/client \
                 --volume=$(pwd -P)/../applications/${APPDIR}:/root/${APPLICATION} \
-                --volume=$(pwd -P)/../resources/coco/val2017:/root/coco2017 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \

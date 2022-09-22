@@ -26,7 +26,7 @@ cd scripts
 ### @ Todo: Launch Hello-World Pocket 
 * Build a minimal Pocket application
 ```
-./install hello-world
+./install hello-world --gpu=0 # or --gpu=1 or omit
 ```
 * Launch a minimal Pocket application
 ```

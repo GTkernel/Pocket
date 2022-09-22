@@ -1,7 +1,7 @@
 #!/bin/bash
 
-BASEDIR=$(dirname $0)
-cd $BASEDIR
+BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+cd ${BASEDIR}
 NUMINSTANCES=1
 TIMESTAMP=$(date +%Y%m%d-%H:%M:%S)
 NETWORK=tf-grpc-exp
@@ -334,7 +334,7 @@ function measure_thruput() {
     #         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
     #         --volume=$(pwd)/../yolov3-tf2/images:/img \
     #         --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-    #         --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+    #         --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env CONTAINER_ID=pocket-client-0000 \
@@ -363,7 +363,7 @@ function measure_thruput() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -435,7 +435,7 @@ function measure_latency() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -462,7 +462,7 @@ function measure_latency() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -541,7 +541,7 @@ function measure_latency2() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -568,7 +568,7 @@ function measure_latency2() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -650,7 +650,7 @@ function measure_inf_thruput() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --volume=/sys/fs/cgroup:/ext/cg \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
@@ -679,7 +679,7 @@ function measure_inf_thruput() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --volume=/sys/fs/cgroup:/ext/cg \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
@@ -709,7 +709,7 @@ function measure_inf_thruput() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --volume=/sys/fs/cgroup:/ext/cg \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
@@ -1292,7 +1292,7 @@ function measure_rusage() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1332,7 +1332,7 @@ function measure_rusage() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -1490,7 +1490,7 @@ function measure_cprofile() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1523,7 +1523,7 @@ function measure_cprofile() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \
@@ -1703,7 +1703,7 @@ function measure_perf() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1742,7 +1742,7 @@ function measure_perf() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=$container_name \
@@ -1913,7 +1913,7 @@ function measure_energy() {
             --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
             --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
             --env CONTAINER_ID=pocket-client-0000 \
@@ -1952,7 +1952,7 @@ function measure_energy() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=$container_name \
@@ -2123,7 +2123,7 @@ function measure_static_1() {
             --volume=$(pwd)/sockets:/sockets \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env SERVER_ADDR=${SERVER_IP} \
             --env CONTAINER_ID=grpc_exp_app_shmem_0000 \
             --workdir='/root/yolov3-tf2' \
@@ -2150,7 +2150,7 @@ function measure_static_1() {
                     --volume=$(pwd)/sockets:/sockets \
                     --volume=$(pwd)/../images:/img \
                     --volume=$(pwd)/..:/root/yolov3-tf2 \
-                    --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                    --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                     --env SERVER_ADDR=${SERVER_IP} \
                     --env CONTAINER_ID=${container_name} \
                     --workdir='/root/yolov3-tf2' \
@@ -2219,7 +2219,7 @@ function measure_static_2() {
             --volume=$(pwd)/sockets:/sockets \
             --volume=$(pwd)/../yolov3-tf2/images:/img \
             --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-            --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
             --env SERVER_ADDR=${SERVER_IP} \
             --env CONTAINER_ID=grpc_exp_app_shmem_0000 \
             --workdir='/root/yolov3-tf2' \
@@ -2246,7 +2246,7 @@ function measure_static_2() {
                     --volume=$(pwd)/sockets:/sockets \
                     --volume=$(pwd)/../yolov3-tf2/images:/img \
                     --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                    --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                    --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                     --env SERVER_ADDR=${SERVER_IP} \
                     --env CONTAINER_ID=${container_name} \
                     --workdir='/root/yolov3-tf2' \
@@ -2375,7 +2375,7 @@ function scaling() {
                 --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
                 --volume=$(pwd)/../yolov3-tf2/images:/img \
                 --volume=$(pwd)/../yolov3-tf2:/root/yolov3-tf2 \
-                --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
                 --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
                 --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
                 --env CONTAINER_ID=${container_name} \

@@ -42,7 +42,7 @@ function print_success() {
 
 function hello_world_minimal() {
     local app=mobilenetv2
-    local path=$BASEDIR/../a_${app}
+    local path=${BASEDIR}/../a_${app}
     local suffix=$([[ $MONOLITHIC -eq 1 ]] && echo '-mon')
     cd $path 
     bash exp_script.sh latency${suffix} -n=$NUMINSTANCES --policy=1 --device=cpu
@@ -51,7 +51,7 @@ function hello_world_minimal() {
 
 function hello_world_all() {
     for app in "${APPLICATIONS[@]}"; do
-        local path=$BASEDIR/../a_${app}
+        local path=${BASEDIR}/../a_${app}
         local suffix=$([[ $MONOLITHIC -eq 1 ]] && echo '-mon')
         bash exp_script.sh latency${suffix} -n=$NUMINSTANCES --policy=1 --device=cpu ${RUSAGE} -a=${app}
         docker ps -a
@@ -61,7 +61,7 @@ function hello_world_all() {
 
 function old_hello_world_all() {
     for app in "${APPLICATIONS[@]}"; do
-        local path=$BASEDIR/../a_${app}
+        local path=${BASEDIR}/../a_${app}
         local suffix=$([[ $MONOLITHIC -eq 1 ]] && echo '-mon')
         cd $path
         bash exp_script.sh latency${suffix} -n=$NUMINSTANCES --policy=1 --device=cpu ${RUSAGE}

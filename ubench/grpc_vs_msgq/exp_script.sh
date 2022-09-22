@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASEDIR=$(dirname $0)
+BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 NUMINSTANCE=1
 TMPFS=0
 function parse_arg() {
@@ -168,7 +168,7 @@ function run_tmpfs_large() {
     docker rm -f $(docker ps -a | grep "server\|client" | awk '{print $1}') > /dev/null 2>&1
 }
 
-cd $BASEDIR
+cd ${BASEDIR}
 COMMAND=$([[ $# == 0 ]] && echo help || echo $1)
 parse_arg ${@:2}
 case $COMMAND in

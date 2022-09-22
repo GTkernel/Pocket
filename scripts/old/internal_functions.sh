@@ -305,7 +305,7 @@ function _run_d_server_shmem_rlimit() {
         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/sockets:/sockets \
-        --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+        --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../yolov3-tf2/:/root/yolov3-tf2 \
         --volume=$(pwd)/../yolov3-tf2/images:/img \
         --volume=/sys/fs/cgroup/:/cg \
@@ -336,7 +336,7 @@ function _run_d_server_shmem_rlimit() {
 #         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
 #         --volume $(pwd)/data:/data \
 #         --volume=$(pwd)/sockets:/sockets \
-#         --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+#         --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
 #         --volume=$(pwd)/../yolov3-tf2/:/root/yolov3-tf2 \
 #         --volume=$(pwd)/../yolov3-tf2/images:/img \
 #         --volume=/sys/fs/cgroup/:/cg \
@@ -371,7 +371,7 @@ function _run_d_server_shmem_rlimit_cProfile() {
         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/sockets:/sockets \
-        --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+        --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../yolov3-tf2/:/root/yolov3-tf2 \
         --volume=$(pwd)/../yolov3-tf2/images:/img \
         $image \
@@ -463,7 +463,7 @@ function _run_d_server_shmem_rlimit_perf() {
         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/sockets:/sockets \
-        --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+        --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../yolov3-tf2/:/root/yolov3-tf2 \
         --volume=$(pwd)/../yolov3-tf2/images:/img \
         $image \
@@ -521,7 +521,7 @@ function _run_d_server_grpc_rlimit() {
         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/sockets:/sockets \
-        --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+        --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../yolov3-tf2-grpc/:/root/yolov3-tf2 \
         --volume=$(pwd)/../yolov3-tf2-grpc/images:/img \
         $image \
@@ -555,7 +555,7 @@ function _run_d_server_grpc_rlimit_cProfile() {
         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/sockets:/sockets \
-        --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+        --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../yolov3-tf2-grpc/:/root/yolov3-tf2 \
         --volume=$(pwd)/../yolov3-tf2-grpc/images:/img \
         $image \
@@ -586,7 +586,7 @@ function _run_d_server_grpc_rlimit_perf() {
         --volume $(pwd)/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
         --volume $(pwd)/data:/data \
         --volume=$(pwd)/sockets:/sockets \
-        --volume=$(pwd)/../tfrpc/server:/root/tfrpc/server \
+        --volume=${BASEDIR}/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../yolov3-tf2-grpc/:/root/yolov3-tf2 \
         --volume=$(pwd)/../yolov3-tf2-grpc/images:/img \
         $image \

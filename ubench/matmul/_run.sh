@@ -98,7 +98,7 @@ function run_pocket_be() {
         --volume=$(pwd)/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server.py
 }
@@ -128,7 +128,7 @@ function run_pocket_be2() {
         --volume=$(pwd)/../../tfrpc/server:/root/tfrpc/server \
         --volume=$(pwd)/../../yolov3-tf2:/root/yolov3-tf2 \
         --volume=/sys/fs/cgroup/:/cg \
-        --volume=$(pwd)/../../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/models:/models \
         $server_image \
         python tfrpc/server/yolo_server.py
 }
@@ -147,7 +147,7 @@ function run_pocket_app_fixed() {
     run_pocket_be2 $server_container_name $SERVER_IP $server_image $total_mem $numinstances > /dev/null
     sleep 3
 
-    # ../../scripts/pocket/pocket \
+    # ../../../pocket/pocket \
     #     run \
     #         --measure-latency $rusage_logging_dir \
     #         -d \
@@ -157,10 +157,10 @@ function run_pocket_app_fixed() {
     #         --memory=2048mb \
     #         --cpus=5 \
     #         --volume=$(pwd)/data:/data \
-    #         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
-    #         --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+    #         --volume=${BASEDIR}/../../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
+    #         --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
     #         --volume=$(pwd):/root/mobilenet \
-    #         --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
+    #         --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -176,7 +176,7 @@ function run_pocket_app_fixed() {
         local index=$(printf "%04d" $i)
         local container_name=pocket-client-${index}
 
-        ../../scripts/pocket/pocket \
+        ../../../pocket/pocket \
             run \
                 --measure-latency $rusage_logging_dir \
                 -d \
@@ -264,7 +264,7 @@ function run_pocket_app() {
     run_pocket_be $server_container_name $SERVER_IP $server_image
     sleep 3
 
-    # ../../scripts/pocket/pocket \
+    # ../../../pocket/pocket \
     #     run \
     #         --measure-latency $rusage_logging_dir \
     #         -d \
@@ -274,10 +274,10 @@ function run_pocket_app() {
     #         --memory=2048mb \
     #         --cpus=5 \
     #         --volume=$(pwd)/data:/data \
-    #         --volume $(pwd)/../scripts/pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
-    #         --volume=$(pwd)/../tfrpc/client:/root/tfrpc/client \
+    #         --volume=${BASEDIR}/../../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
+    #         --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
     #         --volume=$(pwd):/root/mobilenet \
-    #         --volume="$(pwd -P)"/../resources/coco/val2017:/root/coco2017 \
+    #         --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
     #         --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
     #         --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
     #         --env POCKET_MEM_POLICY=func,ratio,0.8 \
@@ -293,7 +293,7 @@ function run_pocket_app() {
         local index=$(printf "%04d" $i)
         local container_name=pocket-client-${index}
 
-        ../../scripts/pocket/pocket \
+        ../../../pocket/pocket \
             run \
                 --measure-latency $rusage_logging_dir \
                 -d \
@@ -357,7 +357,8 @@ function generate_rand_num() {
 function init() {
     local containers="$(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}')"
     docker stop ${containers} > /dev/null 2>&1
-    docker wait ${containers}
+    docker wait ${containers} > /dev/null 2>&1
+
     docker container prune --force
     sleep 3
     # docker network rm $NETWORK

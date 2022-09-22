@@ -1,7 +1,13 @@
 FROM tensorflow/tensorflow:2.1.0-gpu-py3
 
+ENV DEBIAN_FRONTEND=noninteractive
 ARG DOCKERVERSION=19.03.12
-RUN apt-get update -y --fix-missing && \
+ARG DISTRO=ubuntu1804
+ARG ARCH=x86_64
+
+RUN apt-key del 7fa2af80 && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/$DISTRO/$ARCH/3bf863cc.pub && \
+    apt-get update -y --fix-missing && \
     apt install -y git wget time && \
     python3 -m pip install numpy && \
     python3 -m pip install --upgrade pip && \

@@ -15,14 +15,16 @@ function main() {
     parse_arg "${@:2}"
 
     case $COMMAND in
-        prerequisite)
-            ./install-prerequisite.sh --gpu=${GPU}
-            ;;
         hello-world)
-            ./build-pockets.sh --hello-world --gpu=${GPU}
+            cd ../applications/mobilenetv2
+            # bash exp_script.sh latency-mon -n=1 --policy=$p --device=$DEVICE
+            bash exp_script.sh latency -n=1 --policy=$p --device=$DEVICE
+            cd - > /dev/null 2>&1
             ;;
-        all-pockets)
+        mobilenetv2)
+            cd ../applications/mobilenetv2
             ./build-pockets.sh --all --gpu=${GPU}
+            cd - > /dev/null 2>&1
             ;;
     esac
 }
@@ -32,6 +34,7 @@ function parse_arg() {
         case $arg in
             --gpu=*)
                 GPU=${arg#*=}
+                DEVICE=$([[ $GPU = "1" ]] && echo gpu || echo cpu)
                 ;;
             *)
                 ;;

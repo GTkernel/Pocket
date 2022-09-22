@@ -25,7 +25,7 @@ from datetime import datetime
 
 from pocket_tf_if import PocketControl, TFFunctions, ReturnValue, TFDataType, CLIENT_TO_SERVER, SERVER_TO_CLIENT, SharedMemoryChannel
 from papi.papi_helper import pypapi_wrapper
-os.chdir('/root/yolov3-tf2')
+# os.chdir('/root/yolov3-tf2')
 # LIBC = CDLL(find_library('c'))
 
 GLOBAL_SLEEP = 0.01

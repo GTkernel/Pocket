@@ -1,5 +1,6 @@
 #!/bin/bash
 
+HELLOWORLD=1
 MOBILENET=0
 RESNET=0
 SMALLBERT=0
@@ -18,13 +19,17 @@ function main() {
     fi
     
     parse_arg "${@:1}"
-
-    [[ "$MOBILENET" = "1" ]] && build_image a_mobilenetv2
-    [[ "$RESNET" = "1" ]] && build_image a_resnet50
-    [[ "$SMALLBERT" = "1" ]] && build_image a_smallbert
-    [[ "$TALKINGHEADS" = "1" ]] && build_image a_talkingheads
-    [[ "$SSDMOBILENET" = "1" ]] && build_image a_ssdmobilenetv2_320x320
-    [[ "$SSDRESNET" = "1" ]] && build_image a_ssdresnet50v1_640x640
+    if [[ "$HELLOWORLD" = "1" ]]; then
+        print_info "Hello World example with MobileNetV2"
+        build_image mobilenetv2
+    else
+        [[ "$MOBILENET" = "1" ]] && build_image mobilenetv2
+        [[ "$RESNET" = "1" ]] && build_image resnet50
+        [[ "$SMALLBERT" = "1" ]] && build_image smallbert
+        [[ "$TALKINGHEADS" = "1" ]] && build_image talkingheads
+        [[ "$SSDMOBILENET" = "1" ]] && build_image ssdmobilenetv2_320x320
+        [[ "$SSDRESNET" = "1" ]] && build_image ssdresnet50v1_640x640
+    fi
 }
 
 function parse_arg() {
@@ -40,6 +45,9 @@ function parse_arg() {
                 ;;
             --gpu=*)
                 GPU=${arg#*=}
+                ;;
+            --hello-world)
+                HELLOWORLD=1
                 ;;
             --mobilnet)
                 MOBILENET=1
@@ -70,7 +78,7 @@ function build_image() {
     local app_name=$1
     local workding_dir=$(pwd)
 
-    cd ../$app_name
+    cd ../applications/$app_name
 
     bash exp_script.sh build --device=$([[ "${GPU}" = "1" ]] && echo gpu || echo cpu)
 
