@@ -1,0 +1,4 @@
+output
+*.ext4
+*vmlinux
+workspace

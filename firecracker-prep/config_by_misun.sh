@@ -2,6 +2,33 @@
 FCROOT=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 function main( ){
+    COMMAND=$1
+    case $COMMAND in
+        install)
+            install
+            ;;
+        network-test)
+            network_test
+            ;;
+        experiment)
+            experiment
+            ;;
+        turnoff-multi)
+            turnoff_multi "${@:2}"
+            ;;
+        ssh-command)
+            ssh_command "${@:2}"
+            ;;
+        dry-run)
+            dry_run
+            ;;
+        *)
+            print_error "No such command: $COMMAND"
+            ;;
+    esac
+}
+
+function install() {
     # print_info "Setting FireCracker.."
     # print_info "Setting up KVM access.."
     # print_info "sudo access is required."
@@ -18,17 +45,32 @@ function main( ){
     # curl -L ${release_url}/download/${version}/firecracker-${version}-${arch}.tgz | tar -xz
     # mv release-${version}-$(uname -m)/firecracker-${version}-$(uname -m) "${FCROOT}"/firecracker
 
-    # getting_default_kernel_fs
+    # # getting_default_kernel_fs
     # install_firectl
-    # test_firectl_minimal
-    # # custom_rootfs_and_kernel 
-    custom_rootfs_and_kernel2
+    # # test_firectl_minimal
+    # # # custom_rootfs_and_kernel 
+    custom_rootfs_and_kernel
     # test_firectl_all
+}
+
+function network_test() {
+    NUMINSTANCE=1
+    network_init $NUMINSTANCES
+    network_run
+    network_fin
+}
+
+function ssh_command() {
+    local command="$@"
+    VM_IP="$(./util_ipam.sh -v ${ID:-0})"
+    local SSH="ssh -i docker-to-fc/ssh-keys/id_rsa -F docker-to-fc/ssh-keys/ssh-config root@${VM_IP}"
+    ${SSH} $command
 }
 
 function install_firectl() {
     # https://github.com/firecracker-microvm/firectl
     # https://s8sg.medium.com/quick-start-with-firecracker-and-firectl-in-ubuntu-f58aeedae04b
+    # https://gruchalski.com/posts/2021-02-14-firecracker-vmm-with-additional-disks/
     git clone https://github.com/firecracker-microvm/firectl.git
     cd firectl
     make build-in-docker
@@ -39,7 +81,7 @@ function test_firectl_minimal() {
     ./firectl/firectl \
         --firecracker-binary=${FCROOT}/firecracker \
         --kernel=hello-vmlinux.bin \
-        --root-drive=hello-rootfs.ext4 \
+        --root-drive=hello-rootfs.ext4:ro \
         --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
     # login: root/root
     # stop: reboot or sigterm
@@ -50,7 +92,7 @@ function test_firectl_all() {
     ./firectl/firectl \
         --firecracker-binary=${FCROOT}/firecracker \
         --kernel=hello-vmlinux.bin \
-        --root-drive=hello-rootfs.ext4 \
+        --root-drive=hello-rootfs.ext4:ro \
         --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
     # login: root/root
     # stop: reboot or sigterm
@@ -88,228 +130,254 @@ function getting_default_kernel_fs() {
 }
 
 function custom_rootfs_and_kernel() {
-    # # https://github.com/firecracker-microvm/firecracker/blob/main/docs/rootfs-and-kernel-setup.md
-    # # https://stackoverflow.com/questions/53938944/firecracker-microvm-how-to-create-custom-firecracker-microvm-and-file-system-im
-    # # https://gruchalski.com/posts/2021-03-23-introducing-firebuild/
-    print_info "Installing Firebuild"
-    # install_firebuild
-
-    print_info "Create VM Images"
-    create_image
-}
-
-function custom_rootfs_and_kernel2() {
-    # # https://happybear.medium.com/building-ubuntu-20-04-root-filesystem-for-firecracker-e3f4267e58cc
-    # # https://github.com/bkleiner/ubuntu-firecracker
-    # # https://medium.com/@Pawlrus/making-a-custom-microvm-for-aws-firecracker-f22c761a6ceb
-    # # https://github.com/anyfiddle/firecracker-rootfs-builder.git
-
-    # git clone https://github.com/bkleiner/ubuntu-firecracker.git
-    cd ubuntu-firecracker
-    
-    # docker build -t ubuntu-firecracker .
-    # docker run --privileged -it --rm -v $(pwd)/output:/output ubuntu-firecracker
-
-    cp -R ${FCROOT}/../resources/obj_det_sample_img ${FCROOT}/ubuntu-firecracker/obj_det_sample_img
-    cp ${FCROOT}/dockerfiles/* ${FCROOT}/ubuntu-firecracker
+    # git clone https://github.com/anyfiddle/firecracker-rootfs-builder.git
+    cd docker-to-fc
+    mkdir -p output
+    # push_images
+    # docker build -t kernel-rootfs-builder --no-cache .
 
     apps=(mobilenetv2)
     # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
     for app in ${apps[@]}; do
-        docker image rm -f fc-${app}
-        docker build -t fc-${app} -f Dockerfile.${app} --cpu-shares=24 --no-cache .
+        local dir=${app}
+        if [[ "$app" = "ssdmobilenetv2" ]]; then
+            dir=ssdmobilenetv2_320x320
+        elif [[ $app = "ssdresnet50v1" ]]; then
+            dir=ssdresnet50v1_640x640
+        fi
+        rm -f ubuntu-${app}.ext4 ubuntu-vmlinux
+        docker run \
+            --rm \
+            --privileged \
+            --volume=/var/run/docker.sock:/var/run/docker.sock \
+            --volume=$(pwd)/output:/output \
+            --volume=$(pwd)/scripts:/scripts \
+            --volume=$(pwd)/workspace:/workspace \
+            --volume=$(pwd)/ssh-keys:/ssh-keys \
+            --volume=$(pwd)/../../resources/models:/tmp-models \
+            --volume=$(pwd)/../../resources/coco/val2017:/tmp-coco2017 \
+            --volume=$(pwd)/../../applications/${dir}:/tmp-${app} \
+            kernel-rootfs-builder \
+            bash /scripts/create-rootfs.sh misunpark/pocket-${app}-cpu-monolithic:latest $(pwd) ${app} ${dir}
+        docker volume prune -f
+        # read -rsp $'Press any key to continue...\n' -n1 key
         print_debug "Exporting ${app}"
-        docker run --privileged -it --rm -v $(pwd)/output:/output fc-${app}
         cp output/vmlinux ubuntu-vmlinux
         cp output/image.ext4 ubuntu-${app}.ext4
-        truncate -s 5G ubuntu.ext4
-        resize2fs ubuntu.ext4
+        # truncate -s 5G ubuntu.ext4
+        e2fsck -f ubuntu-${app}.ext4
+        resize2fs -M ubuntu-${app}.ext4
+            # mkdir -p misun
+            # sudo mount ubuntu-${app}.ext4 misun
+            # ls -al misun/usr/local/lib
+            # ls -al misun/usr/local/lib/python3.6/dist-packages
+            # sudo umount misun
+            # rmdir misun
+        # read -rsp $'Press any key to continue...\n' -n1 key
+        # print_info "Running ${app}"
+        # ${FCROOT}/firectl/firectl \
+        #     --firecracker-binary=${FCROOT}/firecracker \
+        #     --kernel=ubuntu-vmlinux \
+        #     --root-drive=ubuntu-${app}.ext4 \
+        #     --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
+    done
+    cd -
+}
+
+function dry_run() {
+    # git clone https://github.com/anyfiddle/firecracker-rootfs-builder.git
+    # cd docker-to-fc
+
+    apps=(mobilenetv2)
+    # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    for app in ${apps[@]}; do
         print_info "Running ${app}"
         ${FCROOT}/firectl/firectl \
             --firecracker-binary=${FCROOT}/firecracker \
-            --kernel=ubuntu-vmlinux \
-            --root-drive=ubuntu-${app}.ext4 \
+            --kernel=docker-to-fc/ubuntu-vmlinux \
+            --root-drive=docker-to-fc/ubuntu-${app}.ext4:ro \
             --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
     done
-
-    # Clean up
-    rm -rf ${FCROOT}/ubuntu-firecracker/obj_det_sample_img
-    rm -rf ${FCROOT}/ubuntu-firecracker/Dockerfile.{mobilenetv2,resnet50,smallbert,ssdmobilenetv2,ssdresnet50v1,smallbert,talkingheads}
-    rm -rf tmp
+    # cd - > /dev/null 2>&1
 }
 
-function install_firebuild() {
-    https://gruchalski.com/posts/2021-03-22-firebuild-prerequisites/
-    install_golang
-    install_cni_plugins
-    create_cni_network_config
-    build_firebuild
-    print_warning "Put this command to make $GOPATH system-wide: \"echo \\\$GOPATH=\$GOPATH >> /etc/profile\""
+function multi_run() {
+    # bash config_by_misun.sh ssh-command
+    # for i in $(seq)
+    local app=$1
+    local num=$2
+    fin_multiple_network $num
+    init_multiple_network $num
+
+    sleep 5
+
+    run_multiple_fc $app $num
+    # fin_multiple_network $num
 }
 
-function install_golang() {
-    print_info "Build the rootfs using Firebuild.."
-    print_info "Prerequisite: Install Golang first (https://go.dev/doc/install)"
-    rm -rf ${FCROOT}/tmp/go; mkdir -p ${FCROOT}/tmp/go
-    mkdir -p $HOME/dev/golang/{bin,src}
+function run_multiple_fc() {
+    local app=$1
+    local num=$2
+    # sudo setfacl -m u:${USER}:rw /dev/kvm
+    # [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
 
-    wget -P ${FCROOT}/tmp/go https://go.dev/dl/go1.19.1.linux-amd64.tar.gz
-    sudo bash -c "${FCROOT}/tmp/go && rm -rf /usr/local/go && tar -C /usr/local -xzf ${FCROOT}/tmp/go/go1.19.1.linux-amd64.tar.gz"
+    # echo MAC1=$MAC1
+    # echo MAC2=$MAC2
+    # exit
 
-    print_warning "Add /usr/local/go/bin to \$PATH (export PATH=/usr/local/go/bin:\$PATH)"
-    print_warning "Define \$GOPATH (export \$GOPATH=\$HOME/dev/golang)"
-    print_info "Current \$PATH: $PATH, \$GOPATH: $GOPATH"
+    # SSH="ssh -i docker-to-fc/ssh-keys/id_rsa.pub -F docker-to-fc/ssh-keys/ssh-config root@${VM_IP}"
+    mkdir -p tmp
+    rm -f tmp/*
+
+    local empty_fs=empty.ext4
+    if [[ ! -f $empty_fs ]]; then
+        dd if=/dev/zero of="${empty_fs}" bs=1M count=1024
+        mkfs.ext4 "${empty_fs}"
+    fi
+
+    local last_idx=$(bc <<< "$num - 1")
+    for id in $(seq 0 $last_idx); do
+        local add_drive=fc-${id}.ext4
+        local add_drive2=fc-${id}-2.ext4
+        rm -f $add_drive.ext4 $add_drive2.ext4
+        cp ${empty_fs} ${add_drive}
+        cp ${empty_fs} ${add_drive2}
+    done
+
+    for id in $(seq 0 $last_idx); do
+        local add_drive=fc-${id}.ext4
+        local add_drive2=fc-${id}-2.ext4
+        TAP_DEV=$(./util_ipam.sh -t $id)
+        TAP_IP=$(./util_ipam.sh -h $id)
+        VM_IP=$(./util_ipam.sh -v $id)
+        VM_MASK=$(./util_ipam.sh -m $id)
+        MAYBE_MAC="$(cat /sys/class/net/tap$id/address)"
+        TAP_MAC="$(./util_ipam.sh -a $id)"
+        ${FCROOT}/firectl/firectl \
+            --firecracker-binary=${FCROOT}/firecracker \
+            --kernel=docker-to-fc/ubuntu-vmlinux \
+            --root-drive=docker-to-fc/ubuntu-${app}.ext4:ro \
+            --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0 ip=$VM_IP::$TAP_IP:$VM_MASK:$TAP_DEV:eth0:off" \
+            --tap-device=$TAP_DEV/$TAP_MAC \
+            --add-drive="${add_drive}":rw \
+            --add-drive="${add_drive2}":rw \
+            --socket-path=tmp/fc-$id.sock
+            # --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0" \
+    done
+    print_info "Running ${app}, n=$num"
 }
 
-function install_cni_plugins() {
-    sudo rm -rf /opt/cni/bin && sudo mkdir -p /opt/cni/bin
-    curl -O -L https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz
-    rm -rf ${FCROOT}/tmp/cniplugins && mkdir -p ${FCROOT}/tmp/cniplugins
-    mv cni-plugins-linux-amd64-v0.9.1.tgz ${FCROOT}/tmp/cniplugins
-    sudo tar -C /opt/cni/bin -xzf ${FCROOT}/tmp/cniplugins/cni-plugins-linux-amd64-v0.9.1.tgz
+function experiment() {
+    local app=mobilenetv2
+    local num=1
+    local ssh_pids=()
+    turnoff_multi $num > /dev/null 2>&1
+    sleep 3
+    multi_run $app $num
+    sleep 25
+    mkdir -p tmp
+    local last_idx=$(( num - 1 ))
+    read
+    for id in $(seq 0 $last_idx); do
+        echo id=$id
+        ID=$id bash config_by_misun.sh ssh-command echo hello world #"cd ${app} && python3 app.monolithic.py" #> tmp/${app}_${id}.log 2>&1 &
+        ssh_pids+=($!)
+        sleep 1.5
+    done
+    echo ${ssh_pids[@]}
 
-    rm -rf $GOPATH/src/github.com/awslabs/tc-redirect-tap
-    mkdir -p $GOPATH/src/github.com/awslabs/tc-redirect-tap
-    cd $GOPATH/src/github.com/awslabs/tc-redirect-tap
-    git clone https://github.com/awslabs/tc-redirect-tap.git .
-    sudo make install
-}
+    wait ${ssh_pids[@]}
+    # echo wait
+    # wait
+    # echo wait done
+    # turnoff_multi $num
+    # for i in $(seq $num); do
+    #     cat tmp/${app}_${id}.log #| grep 'inference_time'
+    # done
 
-function create_cni_network_config() {
-    sudo rm -rf /etc/cni/conf.d
-    sudo mkdir -p /etc/cni/conf.d
-
-    # sudo touch /etc/cni/conf.d/machines.conflist
-    # sudo touch /etc/cni/conf.d/machines-builds.conflist
-    # # ls /etc/cni/conf.d/machines.conflist
-    # # ls /etc/cni/conf.d/machine-builds.conflist
-
-sudo bash -c 'cat <<EOF > /etc/cni/conf.d/machines.conflist
-{
-    "name": "machines",
-    "cniVersion": "0.4.0",
-    "plugins": [
-        {
-            "type": "bridge",
-            "name": "machines-bridge",
-            "bridge": "machines0",
-            "isDefaultGateway": true,
-            "ipMasq": true,
-            "hairpinMode": true,
-            "ipam": {
-                "type": "host-local",
-                "subnet": "192.168.127.0/24",
-                "resolvConf": "/etc/resolv.conf"
-            }
-        },
-        {
-            "type": "firewall"
-        },
-        {
-            "type": "tc-redirect-tap"
-        }
-    ]
-}
-EOF'
-
-sudo bash -c 'cat <<EOF > /etc/cni/conf.d/machine-builds.conflist
-{
-    "name": "machine-builds",
-    "cniVersion": "0.4.0",
-    "plugins": [
-        {
-            "type": "bridge",
-            "name": "machine-builds-bridge",
-            "bridge": "builds0",
-            "isDefaultGateway": true,
-            "ipMasq": true,
-            "hairpinMode": true,
-            "ipam": {
-                "type": "host-local",
-                "subnet": "192.168.128.0/24",
-                "resolvConf": "/etc/resolv.conf"
-            }
-        },
-        {
-            "type": "firewall"
-        },
-        {
-            "type": "tc-redirect-tap"
-        }
-    ]
-}
-EOF'
-}
-
-function build_firebuild() {
-    mkdir -p $GOPATH/src/github.com/combust-labs/firebuild
-    cd $GOPATH/src/github.com/combust-labs/firebuild
-    git clone https://github.com/combust-labs/firebuild .
-    go install
-}
-
-
-function create_image() {
-    # create_firebuild_profile
-    # create_vmlinux
-    # create_baseos
-    # push_images
-    create_rootfs
-}
-
-function create_firebuild_profile() {
-    local firecracker=${FCROOT}/firecracker
-    local profile=standard
-
-    sudo rm -rf /etc/firebuild/profiles/$profile
-
-    # sudo rm -rf /firecracker/rootfs
-    # sudo rm -rf /firecracker/vmlinux
-    # sudo rm -rf /fc/jail
-    # sudo rm -rf /fc/cache
-
-    sudo mkdir -p /fc/rootfs
-    sudo mkdir -p /fc/vmlinux
-    sudo mkdir -p /fc/jail
-    sudo mkdir -p /fc/cache
-
-    print_debug "A profile specifies the location of resulting files"
-
-    sudo $GOPATH/bin/firebuild profile-create \
-        --profile=$profile \
-        --binary-firecracker=$(readlink $firecracker) \
-        --chroot-base=/fc/jail \
-        --run-cache=/fc/cache \
-        --storage-provider=directory \
-        --storage-provider-property-string="rootfs-storage-root=/fc/rootfs" \
-        --storage-provider-property-string="kernel-storage-root=/fc/vmlinux"
-        # --binary-jailer=$(readlink /usr/bin/jailer) \
-        # --binary-firecracker=$(readlink /usr/bin/firecracker) \
-}
-
-function create_vmlinux() {
-    local kernel_version=v5.8
-
-    mkdir -p /tmp/linux && cd /tmp/linux
-    git clone https://github.com/torvalds/linux.git .
-    git checkout ${kernel_version}
-    wget -O .config https://raw.githubusercontent.com/combust-labs/firebuild/master/baseos/kernel/5.8.config
-    make vmlinux -j24 # adapt to the number of cores you have
-
-    mv /tmp/linux/vmlinux /fc/vmlinux/vmlinux-${kernel_version}
 
 }
 
-function create_baseos() {
-    local device=cpu
-    sudo rm -rf /fc/rootfs/_/ubuntu/18.04
+function turnoff_multi() {
+    local num=$(bc <<< "$1 - 1")
+    for id in $(seq 0 $num); do
+        curl --unix-socket tmp/fc-$id.sock -i \
+            -X PUT 'http://localhost/actions' \
+            -d '{ "action_type": "SendCtrlAltDel" }'
+        
+    done
+    for id in $(seq 0 $num); do
+        rm -f tmp/fc-$id.sock
+    done
+}
 
-    sudo $GOPATH/bin/firebuild baseos \
-        --profile=standard \
-        --dockerfile ${FCROOT}/baseos/Dockerfiles/ubuntu/18.04/Dockerfile \
-        --tag=baseos/ubuntu:18.04
-        # baseos/_/alpine/3.12/Dockerfile
-        # --dockerfile ${FCROOT}/../applications/mobilenetv2/dockerfiles/${device}/Dockerfile.monolithic.perf
+function init_multiple_network() {
+    # code from: https://github.com/firecracker-microvm/nsdi2020-data/blob/master/scripts/00_setup_host.sh
+    local num=$1
+    chmod +x ./util_ipam.sh
+
+    # Number of Tap devices to create
+    NUM_TAPS=1
+
+    ##
+    ## Configure the host
+    ##
+    ## - Configure packet forwarding
+    ## - Avoid "nf_conntrack: table full, dropping packet"
+    ## - Avoid "neighbour: arp_cache: neighbor table overflow!"
+    ##
+    sudo modprobe kvm_intel
+    sudo sysctl -w net.ipv4.conf.all.forwarding=1
+
+    # sudo sysctl -w net.ipv4.netfilter.ip_conntrack_max=99999999
+    sudo sysctl -w net.netfilter.nf_conntrack_max=99999999
+    sudo sysctl -w net.nf_conntrack_max=99999999
+    sudo sysctl -w net.netfilter.nf_conntrack_max=99999999
+
+    sudo sysctl -w net.ipv4.neigh.default.gc_thresh1=1024
+    sudo sysctl -w net.ipv4.neigh.default.gc_thresh2=2048
+    sudo sysctl -w net.ipv4.neigh.default.gc_thresh3=4096
+
+    ##
+    ## Create and configure network taps (delete existing ones)
+    ##
+
+    MASK=$(./util_ipam.sh -m)
+    PREFIX_LEN=$(./util_ipam.sh -l)
+
+    for ((i=0; i<num; i++)); do
+
+        DEV=$(./util_ipam.sh -t $i)
+        IP=$(./util_ipam.sh -h $i)
+
+        sudo ip link del "$DEV" 2> /dev/null || true
+        sudo ip tuntap add dev "$DEV" mode tap
+
+        sudo sysctl -w net.ipv4.conf.${DEV}.proxy_arp=1 > /dev/null
+        sudo sysctl -w net.ipv6.conf.${DEV}.disable_ipv6=1 > /dev/null
+
+        sudo ip addr add "${IP}${PREFIX_LEN}" dev "$DEV"
+        sudo ip link set dev "$DEV" up
+
+        sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+        sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+        sudo iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+        sudo iptables -A FORWARD -i $DEV -o eno0 -j ACCEPT
+    done
+}
+
+function fin_multiple_network() {
+    local num=$1
+    for ((i=0; i<num; i++)); do
+
+        DEV=$(./util_ipam.sh -t $i)
+        IP=$(./util_ipam.sh -h $i)
+
+        sudo ip link del "$DEV" 2> /dev/null || true
+        sudo ip tuntap del "$DEV"
+    done
+    sudo iptables -F
+    sudo sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward" # usually the default
 }
 
 function push_images() {
@@ -323,31 +391,100 @@ function push_images() {
     done
 }
 
-function create_rootfs() {
-    sudo $GOPATH/bin/firebuild rootfs \
-        --profile=standard \
-        --docker-image=misunpark/pocket-mobilenetv2-cpu-monolithic:latest \
-        --docker-image-base=ubuntu:18.04 \
-        --cni-network-name=machine-builds \
-        --vmlinux-id=vmlinux-v5.8 \
-        --mem=512 \
-        --tag=applications/mobilenetv2:0.1.0
-    exit
-    sudo $GOPATH/bin/firebuild rootfs \
-        --profile=standard \
-        --docker-image=misunpark/pocket-mobilenetv2-cpu-monolithic:latest \
-        --docker-image-base=ubuntu:18.04 \
-        --cni-network-name=machine-builds \
-        --ssh-user=ubuntu \
-        --vmlinux-id=vmlinux-v5.8 \
-        --tag=applications/mobilenetv2:0.1.0
-    # sudo $GOPATH/bin/firebuild rootfs \
-    #     --profile=standard \
-    #     --dockerfile=${FCROOT}/../applications/mobilenetv2/dockerfiles/${device}/Dockerfile.monolithic.perf \
-    #     --cni-network-name=machine-builds \
-    #     --ssh-user=ubuntu \
-    #     --vmlinux-id=vmlinux-v5.8 \
-    #     --tag=applications/mobilenetv2:0.1.0
+function network_init() {
+    # code from: https://github.com/firecracker-microvm/nsdi2020-data/blob/master/scripts/00_setup_host.sh
+    chmod +x ./util_ipam.sh
+
+    # Number of Tap devices to create
+    NUM_TAPS=1
+
+    ##
+    ## Configure the host
+    ##
+    ## - Configure packet forwarding
+    ## - Avoid "nf_conntrack: table full, dropping packet"
+    ## - Avoid "neighbour: arp_cache: neighbor table overflow!"
+    ##
+    sudo modprobe kvm_intel
+    sudo sysctl -w net.ipv4.conf.all.forwarding=1
+
+    # sudo sysctl -w net.ipv4.netfilter.ip_conntrack_max=99999999
+    sudo sysctl -w net.netfilter.nf_conntrack_max=99999999
+    sudo sysctl -w net.nf_conntrack_max=99999999
+    sudo sysctl -w net.netfilter.nf_conntrack_max=99999999
+
+    sudo sysctl -w net.ipv4.neigh.default.gc_thresh1=1024
+    sudo sysctl -w net.ipv4.neigh.default.gc_thresh2=2048
+    sudo sysctl -w net.ipv4.neigh.default.gc_thresh3=4096
+
+    ##
+    ## Create and configure network taps (delete existing ones)
+    ##
+
+    MASK=$(./util_ipam.sh -m)
+    PREFIX_LEN=$(./util_ipam.sh -l)
+
+    for ((i=0; i<NUM_TAPS; i++)); do
+
+        DEV=$(./util_ipam.sh -t $i)
+        IP=$(./util_ipam.sh -h $i)
+
+        sudo ip link del "$DEV" 2> /dev/null || true
+        sudo ip tuntap add dev "$DEV" mode tap
+
+        sudo sysctl -w net.ipv4.conf.${DEV}.proxy_arp=1 > /dev/null
+        sudo sysctl -w net.ipv6.conf.${DEV}.disable_ipv6=1 > /dev/null
+
+        sudo ip addr add "${IP}${PREFIX_LEN}" dev "$DEV"
+        sudo ip link set dev "$DEV" up
+
+        sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+        sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+        sudo iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+        sudo iptables -A FORWARD -i $DEV -o eth0 -j ACCEPT
+    done
+}
+
+function network_run() {
+    ID=0
+    TAP_DEV=$(./util_ipam.sh -t $ID)
+    TAP_IP=$(./util_ipam.sh -h $ID)
+    VM_IP=$(./util_ipam.sh -v $ID)
+    VM_MASK=$(./util_ipam.sh -m $ID)
+    MAYBE_MAC="$(cat /sys/class/net/tap$ID/address)"
+    TAP_MAC="$(./util_ipam.sh -a $ID)"
+
+    # echo MAC1=$MAC1
+    # echo MAC2=$MAC2
+    # exit
+
+    SSH="ssh -i docker-to-fc/ssh-keys/id_rsa.pub -F docker-to-fc/ssh-keys/ssh-config root@${VM_IP}"
+
+    apps=(mobilenetv2)
+    # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    for app in ${apps[@]}; do
+        print_info "Running ${app}"
+        ${FCROOT}/firectl/firectl \
+            --firecracker-binary=${FCROOT}/firecracker \
+            --kernel=docker-to-fc/ubuntu-vmlinux \
+            --root-drive=docker-to-fc/ubuntu-${app}.ext4:ro \
+            --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0 ip=$VM_IP::$TAP_IP:$VM_MASK:$TAP_DEV:eth0:off" \
+            --tap-device=$TAP_DEV/$TAP_MAC \
+            --debug
+            # --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0" \
+    done
+}
+
+function network_fin() {
+    NUM_TAPS=1
+    for ((i=0; i<NUM_TAPS; i++)); do
+
+        DEV=$(./util_ipam.sh -t $i)
+        IP=$(./util_ipam.sh -h $i)
+
+        sudo ip link del "$DEV" 2> /dev/null || true
+        sudo ip tuntap del "$DEV"
+    done
 }
 
 
