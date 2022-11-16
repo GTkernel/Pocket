@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# set -x
 FCROOT=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 function main( ){
@@ -63,7 +64,7 @@ function network_test() {
 function ssh_command() {
     local command="$@"
     VM_IP="$(./util_ipam.sh -v ${ID:-0})"
-    local SSH="ssh -i docker-to-fc/ssh-keys/id_rsa -F docker-to-fc/ssh-keys/ssh-config root@${VM_IP}"
+    local SSH="ssh -i docker-to-fc/ssh-keys/id_rsa -v -F docker-to-fc/ssh-keys/ssh-config root@${VM_IP}"
     ${SSH} $command
 }
 
@@ -136,8 +137,8 @@ function custom_rootfs_and_kernel() {
     # push_images
     # docker build -t kernel-rootfs-builder --no-cache .
 
-    apps=(mobilenetv2)
-    # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    # apps=(mobilenetv2)
+    apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
     for app in ${apps[@]}; do
         local dir=${app}
         if [[ "$app" = "ssdmobilenetv2" ]]; then
@@ -202,22 +203,26 @@ function dry_run() {
 }
 
 function multi_run() {
-    # bash config_by_misun.sh ssh-command
-    # for i in $(seq)
-    local app=$1
-    local num=$2
+    # start=$(date +%s.%N)
+    local cpubudget=$1
+    local app=$2
+    local num=$3
     fin_multiple_network $num
     init_multiple_network $num
-
     sleep 5
+    # end=$(date +%s.%N)
+    # echo here!!!!
+    # bc <<< "$end - $start";exit
 
-    run_multiple_fc $app $num
+
+    run_multiple_fc $cpubudget $app $num
     # fin_multiple_network $num
 }
 
 function run_multiple_fc() {
-    local app=$1
-    local num=$2
+    local cpubudget=$1
+    local app=$2
+    local num=$3
     # sudo setfacl -m u:${USER}:rw /dev/kvm
     # [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
 
@@ -244,6 +249,16 @@ function run_multiple_fc() {
         cp ${empty_fs} ${add_drive2}
     done
 
+    declare -A ncpus
+    if [[ $cpubudget = "up" ]]; then
+        ncpus+=( ["mobilenetv2"]=1 ["resnet50"]=1 ["ssdmobilenetv2"]=1 ["ssdresnet50v1"]=2 ["smallbert"]=1 ["talkingheads"]=2 )
+    elif [[ $cpubudget = "down" ]]; then
+        ncpus+=( ["mobilenetv2"]=2 ["resnet50"]=2 ["ssdmobilenetv2"]=2 ["ssdresnet50v1"]=2 ["smallbert"]=2 ["talkingheads"]=2 )
+    fi
+    declare -A memory
+    memory+=( ["mobilenetv2"]=410 ["resnet50"]=1024 ["ssdmobilenetv2"]=1024 ["ssdresnet50v1"]=1434 ["smallbert"]=1024 ["talkingheads"]=2355 )
+
+
     for id in $(seq 0 $last_idx); do
         local add_drive=fc-${id}.ext4
         local add_drive2=fc-${id}-2.ext4
@@ -261,41 +276,61 @@ function run_multiple_fc() {
             --tap-device=$TAP_DEV/$TAP_MAC \
             --add-drive="${add_drive}":rw \
             --add-drive="${add_drive2}":rw \
-            --socket-path=tmp/fc-$id.sock
+            --socket-path=tmp/fc-$id.sock \
+            --ncpus=${ncpus[$app]} \
+            --memory=${memory[$app]} &
             # --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0" \
     done
     print_info "Running ${app}, n=$num"
 }
 
 function experiment() {
-    local app=mobilenetv2
-    local num=1
-    local ssh_pids=()
-    turnoff_multi $num > /dev/null 2>&1
-    sleep 3
-    multi_run $app $num
-    sleep 25
+    local apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    turnoff_multi $n > /dev/null 2>&1
     mkdir -p tmp
-    local last_idx=$(( num - 1 ))
-    read
-    for id in $(seq 0 $last_idx); do
-        echo id=$id
-        ID=$id bash config_by_misun.sh ssh-command echo hello world #"cd ${app} && python3 app.monolithic.py" #> tmp/${app}_${id}.log 2>&1 &
-        ssh_pids+=($!)
-        sleep 1.5
+    
+    for app in ${apps[@]}; do
+        for n in $(seq 10); do
+        # for n in 1 3 5 10 15 20; do
+            echo app=$app, n=$n/20, iter=10
+
+            for i in $(seq 5); do
+                local ssh_pids=()
+                sleep 3
+                multi_run up $app $n > /dev/null 2>&1 &
+                sleep $(bc <<< "10 + 5 * $n")
+                local last_idx=$(( n - 1 ))
+                for id in $(seq 0 $last_idx); do
+                    ID=$id bash config_by_misun.sh ssh-command "cd ${app} && python3 app.monolithic.fc.py" > tmp/${app}_${id}.log 2>&1 &
+                    ssh_pids+=($!)
+                    sleep 1.5
+                done
+                wait ${ssh_pids[@]}
+                turnoff_multi $n > /dev/null 2>&1
+                for id in $(seq 0 $last_idx); do
+                    cat tmp/${app}_${id}.log | grep 'inference_time'
+                done
+            done
+
+            for i in $(seq 5); do
+                local ssh_pids=()
+                sleep 3
+                multi_run down $app $n > /dev/null 2>&1 &
+                sleep $(bc <<< "10 + 5 * $n")
+                local last_idx=$(( n - 1 ))
+                for id in $(seq 0 $last_idx); do
+                    ID=$id bash config_by_misun.sh ssh-command "cd ${app} && python3 app.monolithic.fc.py" > tmp/${app}_${id}.log 2>&1 &
+                    ssh_pids+=($!)
+                    sleep 1.5
+                done
+                wait ${ssh_pids[@]}
+                turnoff_multi $n > /dev/null 2>&1
+                for id in $(seq 0 $last_idx); do
+                    cat tmp/${app}_${id}.log  | grep 'inference_time'
+                done
+            done
+        done
     done
-    echo ${ssh_pids[@]}
-
-    wait ${ssh_pids[@]}
-    # echo wait
-    # wait
-    # echo wait done
-    # turnoff_multi $num
-    # for i in $(seq $num); do
-    #     cat tmp/${app}_${id}.log #| grep 'inference_time'
-    # done
-
-
 }
 
 function turnoff_multi() {
@@ -360,9 +395,9 @@ function init_multiple_network() {
         sudo ip link set dev "$DEV" up
 
         sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
-        sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+        sudo iptables -t nat -A POSTROUTING -o eno1 -j MASQUERADE # eno0 is just the name of interface.. if you're using eth0 you should refer that one..
         sudo iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-        sudo iptables -A FORWARD -i $DEV -o eno0 -j ACCEPT
+        sudo iptables -A FORWARD -i $DEV -o eno1 -j ACCEPT
     done
 }
 
@@ -376,8 +411,8 @@ function fin_multiple_network() {
         sudo ip link del "$DEV" 2> /dev/null || true
         sudo ip tuntap del "$DEV"
     done
-    sudo iptables -F
-    sudo sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward" # usually the default
+    # sudo iptables -F
+    # sudo sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward" # usually the default
 }
 
 function push_images() {

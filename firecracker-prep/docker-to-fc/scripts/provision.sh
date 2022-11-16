@@ -9,6 +9,7 @@ echo '127.0.0.1     localhost' >> /etc/hosts
 echo 'nameserver     8.8.8.8' >> /etc/resolv.conf
 echo '/dev/vdb      /tmp    ext4    defaults     0     0' >> /etc/fstab
 echo '/dev/vdc      /var    ext4    defaults     0     0' >> /etc/fstab
+echo 'd /var/run 0777 root root -' >> /usr/lib/tmpfiles.d/misun.conf
 rm -rf /var/*
 rm -rf /tmp/* /.*dockerenv /tmp-*
 passwd -d root
