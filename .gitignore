@@ -146,3 +146,4 @@ scripts/data/*/*.latency
 *.bin
 tmp
 */tmp
+*/data

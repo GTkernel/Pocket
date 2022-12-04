@@ -254,12 +254,18 @@ function init() {
         MONOLITHIC_CPU=1.5
         MONOLITHIC_MEM=$(bc <<< '1024 * 1')mb
     elif [[ "$DEVICE" = "gpu" ]]; then
-        POCKET_FE_CPU=1.3
-        POCKET_FE_MEM=$(bc <<< '1024 * 0.25')mb
+        POCKET_FE_CPU=0.8
+        POCKET_FE_MEM=160mb
         POCKET_BE_CPU=1
         POCKET_BE_MEM=$(bc <<< '1024 * 2')mb
-        MONOLITHIC_CPU=1.5
-        MONOLITHIC_MEM=$(bc <<< '1024 * 1.6')mb
+        MONOLITHIC_CPU=1
+        MONOLITHIC_MEM=$(bc <<< '1024 * 1.8')mb
+        # POCKET_FE_CPU=1.3
+        # POCKET_FE_MEM=$(bc <<< '1024 * 0.25')mb
+        # POCKET_BE_CPU=1
+        # POCKET_BE_MEM=$(bc <<< '1024 * 2')mb
+        # MONOLITHIC_CPU=1.5
+        # MONOLITHIC_MEM=$(bc <<< '1024 * 1.6')mb
     fi
 
     # docker network rm $NETWORK
@@ -391,6 +397,95 @@ function measure_latency() {
         local index=$(printf "%04d" $i)
         local container_name=pocket-client-${index}
         docker logs $container_name 2>&1 | grep "inference_time"
+    done
+}
+
+function measure_latency_gpu() {
+    local numinstances=$1
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency)
+
+    local server_container_name=pocket-server-001
+    local server_image=pocket-resnet50-${DEVICE}-server
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+    run_server_basic $server_container_name $SERVER_IP $server_image
+    sleep 5
+
+    ../../pocket/pocket \
+        run \
+            --measure-latency $rusage_logging_dir \
+            -d \
+            -b pocket-resnet50-${DEVICE}-application \
+            -t pocket-client-0000 \
+            -s ${server_container_name} \
+            --memory=$(bc <<< '1024 * 2')mb \
+            --cpus=5 \
+            --volume=$(pwd)/data:/data \
+            --volume=${BASEDIR}/../../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
+            --volume=$(pwd):/root/resnet50 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+            --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+            --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+            --env POCKET_MEM_POLICY=func,ratio,0.8 \
+            --env POCKET_CPU_POLICY=func,ratio,0.8 \
+            --env CONTAINER_ID=pocket-client-0000 \
+            --workdir='/root/resnet50' \
+            -- python3 app.pocket.gpu.py
+
+    sleep 5
+	../../pocket/pocket \
+        wait pocket-client-0000
+
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+
+        ../../pocket/pocket \
+            run \
+                --measure-latency $rusage_logging_dir \
+                -d \
+                -b pocket-resnet50-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --memory=$POCKET_FE_MEM \
+                --cpus=$POCKET_FE_CPU \
+                --volume=$(pwd)/data:/data \
+                --volume=${BASEDIR}/../../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd):/root/resnet50 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --workdir='/root/resnet50' \
+                -- python3 app.pocket.gpu.py &
+        interval=$(generate_rand_num 3)
+        echo interval $interval
+        sleep $interval
+    done
+
+    wait
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        ../../pocket/pocket \
+            wait pocket-client-${index} > /dev/null 2>&1
+    done
+
+    # # For debugging
+    # docker logs pocket-server-001
+    # docker logs -f pocket-client-$(printf "%04d" $numinstances)
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+        docker logs $container_name 2>&1 | grep "inference_time\|be_time\|fe_time"
     done
 }
 
@@ -566,6 +661,94 @@ function measure_latency_monolithic() {
                 --workdir=/root/resnet50 \
                 pocket-resnet50-${DEVICE}-monolithic \
                 python3 app.monolithic.py
+        sleep $(generate_rand_num 3)
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=resnet50-monolithic-${index}
+
+        docker wait "${container_name}"
+        running_time=$(util_get_running_time "${container_name}")
+        echo $running_time > "${rusage_logging_dir}"/"${container_name}".latency
+        echo $running_time
+    done
+
+    # local folder=$(realpath data/${TIMESTAMP}-${numinstances}-graph-monolithic)
+    # mkdir -p $folder
+    # for i in $(seq 0 $numinstances); do
+    #     local index=$(printf "%04d" $i)
+    #     local container_name=resnet50-monolithic-${index}
+    #     docker logs $container_name 2>&1 | grep "graph_construction_time" > $folder/$container_name.graph
+    # done
+
+    # folder=$(realpath data/${TIMESTAMP}-${numinstances}-inf-monolithic)
+    # mkdir -p $folder
+    # for i in $(seq 0 $numinstances); do
+    #     local index=$(printf "%04d" $i)
+    #     local container_name=resnet50-monolithic-${index}
+    #     docker logs $container_name 2>&1 | grep "inference_time" > $folder/$container_name.inf
+    # done
+
+    # # For debugging
+    # docker logs -f resnet50-monolithic-$(printf "%04d" $numinstances)
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=resnet50-monolithic-${index}
+        docker logs $container_name 2>&1 | grep "inference_time"
+    done
+}
+
+function measure_latency_monolithic_gpu() {
+    local numinstances=$1
+    local container_list=()
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency-monolithic)
+    local rusage_logging_file=tmp-service.log
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+
+    # 512mb, oom
+    # 512 + 256 = 768mb, oom
+    # 1024mb, ok
+    # 1024 + 256 = 1280mb
+    # 1024 + 512 = 1536mb
+    # 1024 + 1024 = 2048mb
+    eval docker run "${GPUS}" \
+        --name resnet50-monolithic-0000 \
+        --cpus=1.5 \
+        --memory=$(bc <<< '1024 * 1')mb \
+        --volume=$(pwd)/data:/data \
+        --volume=$(pwd):/root/resnet50 \
+        --volume=${BASEDIR}/../../resources/models:/models \
+        --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+        --workdir=/root/resnet50 \
+        pocket-resnet50-${DEVICE}-monolithic \
+        python3 app.monolithic.gpu.py >/dev/null 2>&1
+        # python3 app.build_model.py
+
+    running_time=$(util_get_running_time resnet50-monolithic-0000)
+    echo $running_time > "${rusage_logging_dir}"/resnet50-monolithic-0000.latency
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=resnet50-monolithic-${index}
+
+        eval docker \
+            run \
+                -d "${GPUS}" \
+                --name ${container_name} \
+                --cpus=$MONOLITHIC_CPU \
+                --memory=$MONOLITHIC_MEM \
+                --volume=$(pwd)/data:/data \
+                --volume=$(pwd):/root/resnet50 \
+                --volume=${BASEDIR}/../../resources/models:/models \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --workdir=/root/resnet50 \
+                pocket-resnet50-${DEVICE}-monolithic \
+                python3 app.monolithic.gpu.py
         sleep $(generate_rand_num 3)
     done
 
@@ -1335,6 +1518,9 @@ case $COMMAND in
     'latency-mon')
         measure_latency_monolithic $NUMINSTANCES
         ;;
+    'latency-mon-gpu')
+        measure_latency_monolithic_gpu $NUMINSTANCES
+        ;;
     'rusage-mon')
         measure_rusage_monolithic $NUMINSTANCES
         ;;
@@ -1343,6 +1529,9 @@ case $COMMAND in
         ;;
     'latency')
         measure_latency $NUMINSTANCES
+        ;;
+    'latency-gpu')
+        measure_latency_gpu $NUMINSTANCES
         ;;
     'measure-exec')
         measure_exec_breakdown $NUMINSTANCES

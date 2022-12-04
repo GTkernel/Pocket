@@ -1,5 +1,0 @@
-/output/*
-Dockerfile.*
-*.ext4
-*vmlinux*
-obj_det_sample_img

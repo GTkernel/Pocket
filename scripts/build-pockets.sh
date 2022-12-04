@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HELLOWORLD=1
+HELLOWORLD=0
 MOBILENET=0
 RESNET=0
 SMALLBERT=0
@@ -49,10 +49,10 @@ function parse_arg() {
             --hello-world)
                 HELLOWORLD=1
                 ;;
-            --mobilnet)
+            --mobilenet|--mobilenetv2)
                 MOBILENET=1
                 ;;
-            --resnet)
+            --resnet|--resnet50)
                 RESNET=1
                 ;;
             --smallbert)
@@ -61,10 +61,10 @@ function parse_arg() {
             --talkingheads)
                 TALKINGHEADS=1
                 ;;
-            --ssdmobilnet)
+            --ssdmobilnet|--ssdmobilenetv2)
                 SSDMOBILENET=1
                 ;;
-            --ssdresnet)
+            --ssdresnet|--ssdresnet50|--ssdresnet50v1)
                 SSDRESNET=1
                 ;;
             *)

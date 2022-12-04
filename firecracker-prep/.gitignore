@@ -2,3 +2,6 @@ tmp
 release-*
 firecracker
 firectl
+*vmlinux
+*.ext4
+rootfs
