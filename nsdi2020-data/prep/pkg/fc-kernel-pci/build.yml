@@ -1,4 +1,0 @@
-image: fc-kernel
-network: true
-arches:
-  - amd64

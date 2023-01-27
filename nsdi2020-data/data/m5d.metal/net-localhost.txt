@@ -1,3 +1,0 @@
-1-stream	10-streams
-RX	TX	RX	TX
-44.14	44.14	46.92	46.92

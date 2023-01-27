@@ -1,1 +1,0 @@
-BOOT_IMAGE=/boot/vmlinuz-4.15.0-76-generic root=UUID=28cf4f19-b975-4115-a4d0-d8545d03b416 ro

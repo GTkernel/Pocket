@@ -1,7 +1,0 @@
-PING 169.254.0.1 (169.254.0.1) 56(84) bytes of data.
-From 169.254.0.2 icmp_seq=1 Destination Host Unreachable
-From 169.254.0.2 icmp_seq=20 Destination Host Unreachable
-
---- 169.254.0.1 ping statistics ---
-20 packets transmitted, 0 received, +2 errors, 100% packet loss, time 19449ms
-pipe 4

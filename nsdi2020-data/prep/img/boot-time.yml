@@ -1,4 +1,0 @@
-kernel:
-  image: rneugeba/fc-kernel:e4194bce6fd6835291c99e5e08b372fd6541aa2a
-init:
-  - rneugeba/init-exit:86f092eca2b5108c39de8908545846b4b2e70733
