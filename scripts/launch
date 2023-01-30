@@ -20,8 +20,8 @@ function main() {
 
     case $COMMAND in
         hello-world)
-            local app=
-            print_info "CURRENT APPLICATION=$app, RATIO=${ratio[$app]}"
+            local app=mobilenetv2
+            print_info "CURRENT APPLICATION=$app, RATIO=default"
             cd ../applications/${app}
             if [[ $DEVICE = "gpu" ]]; then
                 bash exp_script.sh latency-mon-gpu -n=1 --policy=1 --device=$DEVICE
