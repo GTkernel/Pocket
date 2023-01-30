@@ -23,7 +23,7 @@ function main() {
             local app=
             print_info "CURRENT APPLICATION=$app, RATIO=${ratio[$app]}"
             cd ../applications/${app}
-            if [[ $DEVICE = "gpu"]]; then
+            if [[ $DEVICE = "gpu" ]]; then
                 bash exp_script.sh latency-mon-gpu -n=1 --policy=1 --device=$DEVICE
                 bash exp_script.sh latency-gpu -n=1 --policy=1 --device=$DEVICE
             else
