@@ -20,15 +20,17 @@ function main() {
 
     case $COMMAND in
         hello-world)
-            for app in ${APPS[@]}; do
-                print_info "CURRENT APPLICATION=$app, RATIO=${ratio[$app]}"
-                cd ../applications/${app}
-                # bash exp_script.sh latency-mon -n=1 --policy=1 --device=$DEVICE
-                # bash exp_script.sh latency -n=1 --policy=1 --device=$DEVICE
+            local app=
+            print_info "CURRENT APPLICATION=$app, RATIO=${ratio[$app]}"
+            cd ../applications/${app}
+            if [[ $DEVICE = "gpu"]]; then
                 bash exp_script.sh latency-mon-gpu -n=1 --policy=1 --device=$DEVICE
                 bash exp_script.sh latency-gpu -n=1 --policy=1 --device=$DEVICE
-                cd - > /dev/null 2>&1
-            done
+            else
+                bash exp_script.sh latency-mon -n=1 --policy=1 --device=$DEVICE
+                bash exp_script.sh latency -n=1 --policy=1 --device=$DEVICE
+            fi
+            cd - > /dev/null 2>&1
             ;;
         latency)
             print_warning "This script requires bash version newer than 4.0. The current version is ${BASH_VERSION}."

@@ -12,11 +12,12 @@ https://docs.google.com/document/d/1pqzPtLVIvwLwJsZwCb2r7yzWMaifudHe1Xvn42T4CcA/
 * Software dependencies specified in the following sections including Docker
 
 ### Install Dependencies
-* This phase installs software dependencies. (10 miniutes)
+* This phase installs software dependencies. Root previleges required. (10 miniutes)
 ```
 cd scripts
 # To install dependencies to run cpu-based applications
-./install prerequisite --gpu=0 # --gpu=0 can be omitted.
+./install prerequisite --gpu=0 # --gpu=0 can be omitted. # if you're a root user
+sudo --preserve-env=USER ./install prerequisite --gpu=0 # if you're using sudo privilege as a regular user.
 # To install dependencies to run gpu-based applications, additionally cuda related dependencies have to be installed
 ./install prerequisite --gpu=1
 ```
@@ -24,11 +25,13 @@ cd scripts
 
 
 ### @ Todo: Launch Hello-World Pocket 
-* Build a minimal Pocket application
+* **Build a minimal Pocket application**:
+This command will build minimal benchmark.
 ```
-./install hello-world --gpu=0 # or --gpu=1 or omit
+cd scripts
+./install hello-world --gpu=0 # or --gpu=1 or omit # no root privilege required.
 ```
-* Launch a minimal Pocket application
+* **Launch a minimal Pocket application**: 
 ```
 ./launch hello-world
 ```
@@ -39,7 +42,12 @@ cd scripts
 * This process build all application images that are evaluated in Pocket paper.
 ```
 # Build all application binaries for CPU
+## If you are a root,
 ./install all-pockets # `--gpu=0` can be added
+## If you are a user with sudo access then, (and you want to run pocket as this user)
+sudo --preserve-env=USER ./install all-pockets --gpu=0
+
+
 # for GPU
 ./install all-pockets --gpu=1
 ```
