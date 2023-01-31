@@ -24,7 +24,7 @@ sudo --preserve-env=USER ./install prerequisite --gpu=0 # if you're using sudo p
 * **Rebooting** the machine is required. After installation completes, the prompt will ask if you'd like to reboot immediately. You can choose `No` to postpone rebooting, but you need to reboot your machine to use **Pocket** properly.
 
 
-### @ Todo: Launch Hello-World Pocket 
+### Launch Hello-World Pocket 
 * **Build a minimal Pocket application**:
 This command will build minimal benchmark.
 ```
@@ -36,30 +36,49 @@ cd scripts
 ./launch hello-world
 ```
 
+## About Pocket
+### Source Tree
+```
+pocket
+├── applications                    # Benchmark
+│   ├── mobilenetv2
+│   ├── resnet50
+│   ├── smallbert
+│   ├── ssdmobilenetv2_320x320
+│   ├── ssdresnet50v1_640x640
+│   └── talkingheads
+├── firecracker-prep                # Scripts for generating FireCracker compatible filesystem images
+├── pocket                          # Pocket binary
+├── resources                       # input data and other artifacts
+├── scripts                         # scripts for building and running Pocket
+└── tfrpc                           # interface definition between Pocket FE and BE
+```
 
 ## Detailed Instructions
-### @Todo: Build All Model Set
-* This process build all application images that are evaluated in Pocket paper.
+### Build All Model Set
+* This process build all application images that are evaluated in Pocket paper. This phase takes from several hours to 1 day. In this phase all dependencies inside the application image. No other configuration is needed apart from running the script.
 ```
 # Build all application binaries for CPU
-## If you are a root,
 ./install all-pockets # `--gpu=0` can be added
-## If you are a user with sudo access then, (and you want to run pocket as this user)
-sudo --preserve-env=USER ./install all-pockets --gpu=0
-
 
 # for GPU
 ./install all-pockets --gpu=1
 ```
-### @Todo: Launch All Models 
+### @Todo: Run Pocket---Launch All Experiment 
 * Experiments can be replicated with the command `./launch`.
 * Each of these subcommands executes a full set of experiments and takes several hours to complete, so you may want to use this command with some flags such that you can more focus on your interest of evaluation/assesement.
 ```
-./launch exec-breakdown
-./launch hw-counters
-./launch latency #sleep
+./launch latency
+./launch latency-gpu
 ./launch eval-policy
+./launch exec-breakdown
 ```
+<!-- ./launch hw-counters
+./launch latency #sleep -->
+
+### System Requirement
+* Pocket is built on this environment... @Todo
+* It is expected that Pocket can be successfully run on any multi-core commodity server-grade machine with Ubuntu18.04 or newer version.
 
 ### Internal Operation
 * To summarize how you can launch *pocketized* app
