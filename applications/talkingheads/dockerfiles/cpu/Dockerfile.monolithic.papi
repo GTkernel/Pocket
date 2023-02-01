@@ -4,10 +4,10 @@ ARG DOCKERVERSION=19.03.12
 RUN apt-get update -y --fix-missing && \
     apt install -y git wget time && \
     python3 -m pip install numpy && \
-    python3 -m pip install --upgrade pip && \
+    python3 -m pip install --upgrade pip setuptools wheel && \
     python3 -m pip install absl-py && \
     python3 -m pip install sysv_ipc && \
-    python3 -m pip install psutil && \
+    python3 -m pip install cmake psutil && \
     python3 -m pip install python_papi && \
     pip install -q -U tensorflow-text && \
     pip install -q tensorflow-hub && \

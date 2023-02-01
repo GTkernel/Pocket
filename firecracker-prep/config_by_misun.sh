@@ -30,28 +30,28 @@ function main( ){
 }
 
 function install() {
-    # print_info "Setting FireCracker.."
-    # print_info "Setting up KVM access.."
-    # print_info "sudo access is required."
+    print_info "Setting FireCracker.."
+    print_info "Setting up KVM access.."
+    print_info "sudo access is required."
 
-    # sudo setfacl -m u:${USER}:rw /dev/kvm
-    # [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
+    sudo setfacl -m u:${USER}:rw /dev/kvm
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
     
-    # print_info "Getting the FireCracker Binary.."
-    # # https://arun-gupta.github.io/firecracker-getting-started/
-    # release_url="https://github.com/firecracker-microvm/firecracker/releases"
-    # # latest=$(basename $(curl -fsSLI -o /dev/null -w  %{url_effective} ${release_url}/latest))
-    # version=v1.1.0
-    # arch=`uname -m`
-    # curl -L ${release_url}/download/${version}/firecracker-${version}-${arch}.tgz | tar -xz
-    # mv release-${version}-$(uname -m)/firecracker-${version}-$(uname -m) "${FCROOT}"/firecracker
+    print_info "Getting the FireCracker Binary.."
+    # https://arun-gupta.github.io/firecracker-getting-started/
+    release_url="https://github.com/firecracker-microvm/firecracker/releases"
+    # latest=$(basename $(curl -fsSLI -o /dev/null -w  %{url_effective} ${release_url}/latest))
+    version=v1.1.0
+    arch=`uname -m`
+    curl -L ${release_url}/download/${version}/firecracker-${version}-${arch}.tgz | tar -xz
+    mv release-${version}-$(uname -m)/firecracker-${version}-$(uname -m) "${FCROOT}"/firecracker
 
-    # # getting_default_kernel_fs
-    # install_firectl
-    # # test_firectl_minimal
-    # # # custom_rootfs_and_kernel 
+    # getting_default_kernel_fs
+    install_firectl
+    # test_firectl_minimal
+    # # custom_rootfs_and_kernel 
     custom_rootfs_and_kernel
-    # test_firectl_all
+    test_firectl_all
 }
 
 function network_test() {
@@ -134,8 +134,8 @@ function custom_rootfs_and_kernel() {
     # git clone https://github.com/anyfiddle/firecracker-rootfs-builder.git
     cd docker-to-fc
     mkdir -p output
-    # push_images
-    # docker build -t kernel-rootfs-builder --no-cache .
+    push_images
+    docker build -t kernel-rootfs-builder --no-cache .
 
     # apps=(mobilenetv2)
     apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)

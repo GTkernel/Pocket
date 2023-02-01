@@ -23,12 +23,12 @@ function main() {
         print_info "Hello World example with MobileNetV2"
         build_image mobilenetv2
     else
-        [[ "$MOBILENET" = "1" ]] && build_image mobilenetv2
-        [[ "$RESNET" = "1" ]] && build_image resnet50
+        # [[ "$MOBILENET" = "1" ]] && build_image mobilenetv2
+        # [[ "$RESNET" = "1" ]] && build_image resnet50
         [[ "$SMALLBERT" = "1" ]] && build_image smallbert
         [[ "$TALKINGHEADS" = "1" ]] && build_image talkingheads
-        [[ "$SSDMOBILENET" = "1" ]] && build_image ssdmobilenetv2_320x320
-        [[ "$SSDRESNET" = "1" ]] && build_image ssdresnet50v1_640x640
+        # [[ "$SSDMOBILENET" = "1" ]] && build_image ssdmobilenetv2_320x320
+        # [[ "$SSDRESNET" = "1" ]] && build_image ssdresnet50v1_640x640
     fi
 }
 
