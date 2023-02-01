@@ -68,7 +68,7 @@ pocket
 * Experiments can be replicated with the command `./launch`.
 * Each of these subcommands executes a full set of experiments and takes several hours to complete, so you may want to use this command with some flags such that you can more focus on your interest of evaluation/assesement.
 ```
-./launch latency
+./launch latency # The most basic command to verify functionality. The others are for specific experiments.
 ./launch latency-gpu
 ./launch eval-policy
 ./launch exec-breakdown
