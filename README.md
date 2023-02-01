@@ -77,7 +77,16 @@ pocket
 ./launch latency #sleep -->
 
 ### System Requirement
-* Pocket is built on this environment... @Todo
+* Pocket is built and tested on the environment as below:
+
+| Items            	| Specification                                                                     	|
+|------------------	|-----------------------------------------------------------------------------------	|
+| Processors       	| Intel(R) Xeon(R) CPU E5-2670 v3 @ 2.30GHz;<br>2 Processors; 24 cores; 48 threads  	|
+| GPU              	| NVIDIA K80 (only for GPU experiments)                                             	|
+| Memory           	| 128MiB                                                                            	|
+| Operating System 	| Ubuntu 18.04.3 LTS<br>GNU/Linux 4.15.0-76-generic x86_64                          	|
+| Runtime/Library  	| TensorFlow:2.1.0; GCC 7.4.0 python 3.6.9<br>Docker version 20.10.8, build 3967b7d 	|
+
 * It is expected that Pocket can be successfully run on any multi-core commodity server-grade machine with Ubuntu18.04 or newer version.
 
 ### Internal Operation
