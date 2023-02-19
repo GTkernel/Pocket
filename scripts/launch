@@ -43,7 +43,8 @@ function main() {
                 print_info "CURRENT APPLICATION=$app, RATIO=${ratio[$app]}"
                 cd ../applications/${app}
                     print_info "$app-pocket"
-                    for p in 1 2 3; do
+                    # for p in 1 2 3; do
+                    for p in 1; do
                         for n in $(seq 1 10); do
                             print_info "$app-pocket policy=$p, n=$n, i=$ITERATIONS"
                             for i in $(seq 1 $ITERATIONS); do
@@ -175,6 +176,24 @@ function main() {
             ;;
         latency-fc)
             # @Todo
+            ;;
+        boottime)
+            local APPS=(mobilenetv2)
+            for app in ${APPS[@]}; do
+                echo
+                print_info "CURRENT APPLICATION=$app"
+                cd ../applications/${app}
+                print_info "$app-pocket"
+                # for n in 1 5 10 20; do
+                for n in 1; do
+                    print_info "$app-pocket n=$n, i=$ITERATIONS"
+                    for i in $(seq 1 $ITERATIONS); do
+                        bash exp_script.sh boottime \
+                            -n=$n
+                    done
+                done
+                cd - > /dev/null 2>&1
+            done
             ;;
         *)
             print_error "No such command: $COMMAND"
