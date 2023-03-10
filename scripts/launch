@@ -169,32 +169,83 @@ function main() {
             done
             ;;
         eval-policy)
-            # @Todo
+            for app in ${APPS[@]}; do
+                cd ../applications/${app}
+                for p in $(seq 0 8); do
+                    docker rm -f $(docker ps -aq) > /dev/null 2>&1
+                    print_info "[parse/header] CURRENT APPLICATION=$app, RATIO=0.$p"
+                    bash exp_script.sh latency -n=1 --cpupolicy="func,ratio,0.$p" --mempolicy="func,ratio,0.$p" 2>&1 grep 'inference_time\|>>>>>>>' 
+                done
+            done
             ;;
         exec-breakdown)
-            # @Todo
+            local apps=(ssdresnet50v1_640x640 smallbert)
+            for app in ${apps[@]}; do
+                cd ../applications/${app}
+
+                # to evaluate pocket-dynamic
+                print_info "[parse/header] CURRENT APPLICATION=$app, POLICY=dynamic"
+                docker rm -f $(docker ps -aq) # to removing dangling instance and clean up
+                bash exp_script.sh measure-exec -n=1 --policy=1 && docker wait pocket-client-0001
+                docker logs pocket-client-0001 2>&1 | grep 'total_time\|be_time\|fe_time\|fe_ratio'
+
+                # to evaluate none
+                print_info "[parse/header] CURRENT APPLICATION=$app, POLICY=none"
+                docker rm -f $(docker ps -aq) # to removing dangling instance and clean up
+                bash exp_script.sh measure-exec -n=1 --policy=3 && docker wait pocket-client-0001
+                docker logs pocket-client-0001 2>&1 | grep 'total_time\|be_time\|fe_time\|fe_ratio'
+
+                # to evaluate pocket-static
+                print_info "[parse/header] CURRENT APPLICATION=$app, POLICY=static"
+                docker rm -f $(docker ps -aq) # to removing dangling instance and clean up
+                bash exp_script.sh measure-exec -n=1 --policy=4 && docker wait pocket-client-0001
+                docker logs pocket-client-0001 2>&1 | grep 'total_time\|be_time\|fe_time\|fe_ratio'
+            done
             ;;
         latency-fc)
             # @Todo
             ;;
-        boottime)
-            local APPS=(mobilenetv2)
-            for app in ${APPS[@]}; do
-                echo
-                print_info "CURRENT APPLICATION=$app"
-                cd ../applications/${app}
-                print_info "$app-pocket"
-                # for n in 1 5 10 20; do
-                for n in 1; do
-                    print_info "$app-pocket n=$n, i=$ITERATIONS"
-                    for i in $(seq 1 $ITERATIONS); do
-                        bash exp_script.sh boottime \
-                            -n=$n
-                    done
-                done
-                cd - > /dev/null 2>&1
-            done
-            ;;
+        # boottime)
+        #     # local APPS=(ssdmobilenetv2_320x320 ssdresnet50v1_640x640)
+        #     for app in ${APPS[@]}; do
+        #         echo
+        #         print_info "[parse/header] CURRENT APPLICATION=$app"
+        #         cd ../applications/${app}
+        #         for n in 1 5 10 20; do
+        #             print_info "[parse/header] $app-pocket n=$n, i=$ITERATIONS"
+        #             for i in $(seq 1 $ITERATIONS); do
+        #                 bash exp_script.sh boottime \
+        #                     -n=$n
+        #             done
+        #         done
+        #         for n in 1 5 10 20; do
+        #             print_info "[parse/header] $app-monolith n=$n, i=$ITERATIONS"
+        #             for i in $(seq 1 $ITERATIONS); do
+        #                 bash exp_script.sh boottime-mon \
+        #                     -n=$n
+        #             done
+        #         done
+        #         if [[ $(which criu | wc -l) -lt 1 ]]; then
+        #             print_error "criu is not installed. skipping c/r experiment"
+        #             continue
+        #             sudo add-apt-repository ppa:criu/ppa -y
+        #             sudo apt update -y
+        #             sudo apt-get install criu -y
+        #         fi
+        #         # for n in 1; do
+        #         for n in 1 5 10 20; do
+        #             docker rm -f $(docker ps -aq)
+        #             docker container prune --force
+        #             sudo rm -rf /tmp/*checkpoint* && sudo systemctl restart docker; sleep 10
+        #             print_info "[parse/header] $app-cr n=$n, i=$ITERATIONS"
+        #             for i in $(seq 1 $ITERATIONS); do
+        #                 bash exp_script.sh boottime-mon-cr \
+        #                     -n=$n
+        #             done
+        #         done
+        #         cd - > /dev/null 2>&1
+        #     done
+        #     ;;
         *)
             print_error "No such command: $COMMAND"
             ;;
