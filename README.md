@@ -1,4 +1,7 @@
 # **Pocket**
+This repository contains source code and script files for the Pocket paper, which will be presented at [Eurosys'23](https://2023.eurosys.com). Technical details and design decisions are available in the published paper.
+
+(Bibtex for citation will be added once it gets available.)
 
 ## Getting Started Instructions 
 <!--
