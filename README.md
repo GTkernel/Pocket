@@ -1,6 +1,8 @@
 # **Pocket**
 This repository contains source code and script files for the Pocket paper, which will be presented at [Eurosys'23](https://2023.eurosys.com). Technical details and design decisions are available in the published paper.
 
+A tag for submitted artifact: [artifact-evaluation](https://github.com/GTkernel/Pocket/releases/tag/artifact-evaluation)
+
 (Bibtex for citation will be added once it gets available.)
 
 ## Getting Started Instructions 
