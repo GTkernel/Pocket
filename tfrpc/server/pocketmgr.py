@@ -67,17 +67,17 @@ class Utils:
     def measure_resource_usage():
         stat_dict = {}
         with open('/sys/fs/cgroup/cpuacct/cpuacct.usage') as f:
-            stat_dict['cputime.total'] = f.read()
+            stat_dict['cputime.total'] = f.read().strip()
         with open('/sys/fs/cgroup/cpuacct/cpuacct.usage_sys') as f:
             stat_dict['cputime.sys'] = f.read()
         with open('/sys/fs/cgroup/cpuacct/cpuacct.usage_user') as f:
-            stat_dict['cputime.user'] = str(int(stat_dict['cputime.total']) - int(stat_dict['cputime.sys']))
+            stat_dict['cputime.user'] = str(int(stat_dict['cputime.total']) - int(stat_dict['cputime.sys'])).strip()
         with open('/sys/fs/cgroup/memory/memory.max_usage_in_bytes') as f:
-            stat_dict['memory.max_usage'] = f.read()
+            stat_dict['memory.max_usage'] = f.read().strip()
         with open('/sys/fs/cgroup/memory/memory.memsw.max_usage_in_bytes') as f:
-            stat_dict['memory.memsw.max_usage'] = f.read()
+            stat_dict['memory.memsw.max_usage'] = f.read().strip()
         with open('/sys/fs/cgroup/memory/memory.failcnt') as f:
-            stat_dict['memory.failcnt'] = f.read()
+            stat_dict['memory.failcnt'] = f.read().strip()
         with open('/sys/fs/cgroup/memory/memory.stat') as f:
             for line in f:
                 if 'total_pgfault' in line:

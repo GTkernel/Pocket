@@ -8,6 +8,7 @@ INTERVAL=0
 RSRC_RATIO=0.5
 RSRC_REALLOC=1
 EVENTSET=0
+FROM_SCRATCH=false
 
 SUBNETMASK=111.222.0.0/16
 SERVER_IP=111.222.3.26
@@ -83,6 +84,9 @@ function parse_arg(){
                 ;;
             --cpupolicy=*)
                 POCKET_CPU_POLICY="${arg#*=}"
+                ;;
+            --from-scratch)
+                FROM_SCRATCH=true
                 ;;
         esac
     done
@@ -236,11 +240,15 @@ function run_server_perf() {
 }
 
 function init() {
-    local containers="$(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}')"
+    if [[ $FROM_SCRATCH = true ]]; then
+        local containers="$(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket\|monolithic" | awk '{print $1}')"
+    else
+        local containers="$(docker ps -a | grep "grpc_server\|grpc_app_\|grpc_exp_server\|grpc_exp_app\|pocket" | awk '{print $1}')"
+    fi
     docker stop ${containers} > /dev/null 2>&1
     docker wait ${containers} > /dev/null 2>&1
 
-    docker container prune --force
+    [[ $FROM_SCRATCH = true ]] && docker container prune --force
 
     if [[ "$DEVICE" = "cpu" ]]; then
         POCKET_FE_CPU=1.3
@@ -1431,6 +1439,263 @@ function measure_perf() {
 }
 
 
+function boottime() {
+    local numinstances=$1
+    local server_container_name=pocket-server-001
+    local server_image=pocket-ssdmobilenetv2-${DEVICE}-server
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-perf)
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+    run_server_basic $server_container_name $SERVER_IP $server_image
+    sleep 5
+
+    ../../pocket/pocket \
+        run \
+            --measure-latency $rusage_logging_dir \
+            -d \
+            -b pocket-ssdmobilenetv2-${DEVICE}-application \
+            -t pocket-client-0000 \
+            -s ${server_container_name} \
+            --memory=2048mb \
+            --cpus=5 \
+            --volume=$(pwd)/data:/data \
+            --volume=${BASEDIR}/../../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
+            --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
+            --volume=$(pwd):/root/ssdmobilenetv2 \
+            --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+            --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+            --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+            --env POCKET_MEM_POLICY=func,ratio,0.8 \
+            --env POCKET_CPU_POLICY=func,ratio,0.8 \
+            --env CONTAINER_ID=pocket-client-0000 \
+            --workdir='/root/ssdmobilenetv2' \
+            -- python3 app.pocket.py
+
+    sleep 5
+    ../../pocket/pocket \
+        wait pocket-client-0000
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+
+        ### 1. Instantiate
+        echo "[parse/boot/ssdmobilenetv2/poc/$i/init] $(date +%s%6N)"
+        ../../pocket/pocket \
+            run \
+                --measure-latency $rusage_logging_dir \
+                -d \
+                -b pocket-ssdmobilenetv2-${DEVICE}-application \
+                -t ${container_name} \
+                -s ${server_container_name} \
+                --memory=$POCKET_FE_MEM \
+                --cpus=$POCKET_FE_CPU \
+                --volume=$(pwd)/data:/data \
+                --volume=${BASEDIR}/../../pocket/tmp/pocketd.sock:/tmp/pocketd.sock \
+                --volume=${BASEDIR}/../../tfrpc/client:/root/tfrpc/client \
+                --volume=$(pwd):/root/ssdmobilenetv2 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --env RSRC_REALLOC_RATIO=${RSRC_RATIO} \
+                --env RSRC_REALLOC_ON=${RSRC_REALLOC} \
+                --env POCKET_MEM_POLICY=${POCKET_MEM_POLICY} \
+                --env POCKET_CPU_POLICY=${POCKET_CPU_POLICY} \
+                --env CONTAINER_ID=${container_name} \
+                --workdir='/root/ssdmobilenetv2' \
+                -- bash -c "echo -n '[parse/boot/ssdmobilenetv2/poc/$i/boot] ' && date +%s%6N && python3 app.pocket.boot.py" &
+        interval=$(generate_rand_num 3)
+        echo interval $interval
+        sleep $interval
+    done
+
+    wait
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        ../../pocket/pocket \
+            wait pocket-client-${index} > /dev/null 2>&1
+    done
+
+    # # For debugging
+    # docker logs pocket-server-001
+    # docker logs -f pocket-client-$(printf "%04d" $numinstances)
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=pocket-client-${index}
+        docker logs $container_name 2>&1 | grep '\[parse/boot'
+    done
+    rm -rf "${rusage_logging_dir}"
+}
+
+function boottime_monolithic() {
+    local numinstances=$1
+    local container_list=()
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency-monolithic)
+    local rusage_logging_file=tmp-service.log
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+    # 512mb, oom
+    # 512 + 256 = 768mb, oom
+    # 1024mb, ok
+    # 1024 + 256 = 1280mb
+    # 1024 + 512 = 1536mb
+    # 1024 + 1024 = 2048mb
+    eval docker run "${GPUS}" \
+        --name ssdmobilenetv2-monolithic-0000 \
+        --cpus=1.5 \
+        --memory=$(bc <<< '1024 * 0.3')mb \
+        --volume=$(pwd)/data:/data \
+        --volume=$(pwd):/root/ssdmobilenetv2 \
+        --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+        --workdir=/root/ssdmobilenetv2 \
+        pocket-ssdmobilenetv2-${DEVICE}-monolithic \
+        python3 app.monolithic.py >/dev/null 2>&1
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+
+        echo "[parse/boot/ssdmobilenetv2/mon/$i/init] $(date +%s%6N)"
+        eval docker \
+            run \
+                -d "${GPUS}" \
+                --name ${container_name} \
+                --cpus=$MONOLITHIC_CPU \
+                --memory=$MONOLITHIC_MEM \
+                --volume=$(pwd)/data:/data \
+                --volume=$(pwd):/root/ssdmobilenetv2 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --env CONTAINER_ID=$i \
+                --workdir=/root/ssdmobilenetv2 \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic \
+                bash -c \"echo -n \'[parse/boot/ssdmobilenetv2/mon/$i/boot] \' \&\& date +%s%6N \&\& python3 app.monolithic.boot.py\"
+                # bash -c \"python3 app.monolithic.boot.py\"
+                # python3 app.monolithic.boot.py
+                # which python3
+                # pwd
+                # bash -c "which python3"
+                # python3 app.monolithic.boot.py
+        sleep $(generate_rand_num 3)
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+
+        docker wait "${container_name}"
+        # running_time=$(util_get_running_time "${container_name}")
+        # echo $running_time > "${rusage_logging_dir}"/"${container_name}".latency
+        # echo $running_time
+    done
+
+    # # For debugging
+    # docker logs -f ssdmobilenetv2-monolithic-$(printf "%04d" $numinstances)
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+        docker logs $container_name 2>&1 | grep '\[parse/boot'
+    done
+
+    rm -rf $rusage_logging_dir
+}
+
+function boottime_monolithic_cr() {
+    local numinstances=$1
+    local container_list=()
+    local rusage_logging_dir=$(realpath data/${TIMESTAMP}-${numinstances}-latency-monolithic)
+    local rusage_logging_file=tmp-service.log
+
+    mkdir -p ${rusage_logging_dir}
+    init
+
+    ipcrm --all=msg && sleep 3
+
+    # 1. Remove all existing checkpoints
+    if [[ $FROM_SCRATCH = true ]]; then
+        for i in $(seq 1 $numinstances); do
+            local index=$(printf "%04d" $i)
+            local container_name=ssdmobilenetv2-monolithic-${index}
+
+            docker rm -f ${container_name} > /dev/null 2>&1
+            docker checkpoint rm ${container_name} default > /dev/null 2>&1
+        done
+        sudo rm -rf /tmp/*checkpoint* && sudo systemctl restart docker
+    fi
+    
+    # 2. Create a checkpoint
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+
+        local checkpoints=$(docker checkpoint ls ${container_name} | wc -l)
+        if [[ $checkpoints -ge 2 ]]; then
+            continue
+        fi
+
+        kill -n 15 $(ps aux | grep create\_checkpoint | awk '{ print $2 }') > /dev/null 2>&1
+        python3 ../../scripts/utils/create_checkpoint.py &
+        pid_checkpoint_helper=$!
+        sleep 3
+
+        eval docker \
+            run \
+                -d "${GPUS}" \
+                --name ${container_name} \
+                --cpus=$MONOLITHIC_CPU \
+                --memory=$MONOLITHIC_MEM \
+                --ipc=host \
+                --volume=$(pwd)/data:/data \
+                --volume=$(pwd):/root/ssdmobilenetv2 \
+                --volume=${BASEDIR}/../../resources/coco/val2017:/root/coco2017 \
+                --env CONTAINER_ID=$i \
+                --env CONTAINER_NAME=${container_name} \
+                --workdir=/root/ssdmobilenetv2 \
+                pocket-ssdmobilenetv2-${DEVICE}-monolithic \
+                bash -c \"echo -n \'[parse/boot/ssdmobilenetv2/cr/$i/boot] \' \&\& date +%s%6N \&\& python3 app.monolithic.cr.boot.py\"
+
+        wait $pid_checkpoint_helper
+        docker wait ${container_name} > /dev/null 2>&1
+    done
+
+    # 3. start a check point
+    local startat=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    sleep 1
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+
+        echo "[parse/boot/ssdmobilenetv2/cr/$i/init] $(date +%s%6N)"
+        docker \
+            start \
+                --checkpoint default ${container_name}
+        sleep $(generate_rand_num 3)
+    done
+
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+
+        docker wait "${container_name}"
+    done
+
+    kill -SIGTERM $strace_pid
+
+    # # For debugging
+    for i in $(seq 1 $numinstances); do
+        local index=$(printf "%04d" $i)
+        local container_name=ssdmobilenetv2-monolithic-${index}
+
+        docker logs $container_name --since $startat 2>&1 | grep '\[parse/boot'
+    done
+
+    rm -rf $rusage_logging_dir
+}
+
+
 parse_arg ${@:2}
 echo '>>>>>>>POCKET_MEM_POLICY=' $POCKET_MEM_POLICY
 echo '>>>>>>>POCKET_CPU_POLICY=' $POCKET_CPU_POLICY
@@ -1482,6 +1747,15 @@ case $COMMAND in
         ;;
     'pf')
         measure_pf $NUMINSTANCES
+        ;;
+    'boottime')
+        boottime $NUMINSTANCES
+        ;;
+    'boottime-mon')
+        boottime_monolithic $NUMINSTANCES
+        ;;
+    'boottime-mon-cr')
+        boottime_monolithic_cr $NUMINSTANCES
         ;;
     'help'|*)
         help

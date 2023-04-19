@@ -50,6 +50,7 @@ function install_packages() {
     apt-get update -y
     apt-get install -y bc
     apt-get install gawk
+    pip install sysv-ipc
 }
 
 function download_coco_imageset() {

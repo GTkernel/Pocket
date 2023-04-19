@@ -3,16 +3,23 @@
 FCROOT=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 function main( ){
+    chmod 0600 docker-to-fc/ssh-keys/id_rsa
     COMMAND=$1
     case $COMMAND in
         install)
             install
+            ;;
+        basic-test)
+            test_firectl_all
             ;;
         network-test)
             network_test
             ;;
         experiment)
             experiment
+            ;;
+        boottime)
+            boottime
             ;;
         turnoff-multi)
             turnoff_multi "${@:2}"
@@ -46,12 +53,11 @@ function install() {
     curl -L ${release_url}/download/${version}/firecracker-${version}-${arch}.tgz | tar -xz
     mv release-${version}-$(uname -m)/firecracker-${version}-$(uname -m) "${FCROOT}"/firecracker
 
-    # getting_default_kernel_fs
+    getting_default_kernel_fs
     install_firectl
-    # test_firectl_minimal
-    # # custom_rootfs_and_kernel 
-    custom_rootfs_and_kernel
     test_firectl_all
+    # # test_firectl_minimal
+    custom_rootfs_and_kernel
 }
 
 function network_test() {
@@ -72,9 +78,21 @@ function install_firectl() {
     # https://github.com/firecracker-microvm/firectl
     # https://s8sg.medium.com/quick-start-with-firecracker-and-firectl-in-ubuntu-f58aeedae04b
     # https://gruchalski.com/posts/2021-02-14-firecracker-vmm-with-additional-disks/
+    if ! which go; then
+        print_warning "Go is not found in your system. Go is getting installed..."
+        rm -rf /usr/local/go && tar -C /usr/local -xzf go1.20.1.linux-amd64.tar.gz
+        sudo apt update -y
+        sudo apt upgrade -y
+        sudo apt install golang-go -y
+    fi
+
+    [[ -d firectl ]] && rm -rf firectl
+
     git clone https://github.com/firecracker-microvm/firectl.git
     cd firectl
+    make clean
     make build-in-docker
+    cd -
     # INSTALLPATH=${FCROOT}/firectl make install
 }
 
@@ -137,8 +155,8 @@ function custom_rootfs_and_kernel() {
     push_images
     docker build -t kernel-rootfs-builder --no-cache .
 
-    # apps=(mobilenetv2)
-    apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    apps=(ssdresnet50v1)
+    # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
     for app in ${apps[@]}; do
         local dir=${app}
         if [[ "$app" = "ssdmobilenetv2" ]]; then
@@ -174,12 +192,30 @@ function custom_rootfs_and_kernel() {
             # ls -al misun/usr/local/lib/python3.6/dist-packages
             # sudo umount misun
             # rmdir misun
-        # read -rsp $'Press any key to continue...\n' -n1 key
+
+
+        ## To run testing app, uncomment below lines
         # print_info "Running ${app}"
+
+        # local empty_fs=empty.ext4
+        # if [[ ! -f $empty_fs ]]; then
+        #     dd if=/dev/zero of="${empty_fs}" bs=1M count=1024
+        #     mkfs.ext4 "${empty_fs}"
+        # fi
+
+        # local add_drive=fc-empty.ext4
+        # local add_drive2=fc-empty-2.ext4
+        # rm -f $add_drive.ext4 $add_drive2.ext4
+        # cp ${empty_fs} ${add_drive}
+        # cp ${empty_fs} ${add_drive2}
+
+        # read -rsp $'Press any key to continue...\n' -n1 key
         # ${FCROOT}/firectl/firectl \
         #     --firecracker-binary=${FCROOT}/firecracker \
         #     --kernel=ubuntu-vmlinux \
-        #     --root-drive=ubuntu-${app}.ext4 \
+        #     --root-drive=ubuntu-${app}.ext4:ro \
+        #     --add-drive="${add_drive}":rw \
+        #     --add-drive="${add_drive2}":rw \
         #     --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
     done
     cd -
@@ -189,14 +225,32 @@ function dry_run() {
     # git clone https://github.com/anyfiddle/firecracker-rootfs-builder.git
     # cd docker-to-fc
 
-    apps=(mobilenetv2)
+    sudo setfacl -m u:${USER}:rw /dev/kvm
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
+
+    local empty_fs=empty.ext4
+    if [[ ! -f $empty_fs ]]; then
+        dd if=/dev/zero of="${empty_fs}" bs=1M count=1024
+        mkfs.ext4 "${empty_fs}"
+    fi
+
+    apps=(resnet50)
     # apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
     for app in ${apps[@]}; do
         print_info "Running ${app}"
+
+        local add_drive=fc-empty.ext4
+        local add_drive2=fc-empty-2.ext4
+        rm -f $add_drive.ext4 $add_drive2.ext4
+        cp ${empty_fs} ${add_drive}
+        cp ${empty_fs} ${add_drive2}
+
         ${FCROOT}/firectl/firectl \
             --firecracker-binary=${FCROOT}/firecracker \
             --kernel=docker-to-fc/ubuntu-vmlinux \
             --root-drive=docker-to-fc/ubuntu-${app}.ext4:ro \
+            --add-drive="${add_drive}":rw \
+            --add-drive="${add_drive2}":rw \
             --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0"
     done
     # cd - > /dev/null 2>&1
@@ -207,6 +261,10 @@ function multi_run() {
     local cpubudget=$1
     local app=$2
     local num=$3
+
+    sudo setfacl -m u:${USER}:rw /dev/kvm
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
+
     fin_multiple_network $num
     init_multiple_network $num
     sleep 5
@@ -284,6 +342,73 @@ function run_multiple_fc() {
     print_info "Running ${app}, n=$num"
 }
 
+function run_multiple_fc_bootexp() {
+    local cpubudget=$1
+    local app=$2
+    local num=$3
+    # sudo setfacl -m u:${USER}:rw /dev/kvm
+    # [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "KVM Access OK" || echo "KVM Access FAIL"
+
+    # echo MAC1=$MAC1
+    # echo MAC2=$MAC2
+    # exit
+
+    # SSH="ssh -i docker-to-fc/ssh-keys/id_rsa.pub -F docker-to-fc/ssh-keys/ssh-config root@${VM_IP}"
+    mkdir -p tmp
+    rm -f tmp/*
+
+    local empty_fs=empty.ext4
+    if [[ ! -f $empty_fs ]]; then
+        dd if=/dev/zero of="${empty_fs}" bs=1M count=1024
+        mkfs.ext4 "${empty_fs}"
+    fi
+
+    local last_idx=$(bc <<< "$num - 1")
+    for id in $(seq 0 $last_idx); do
+        local add_drive=fc-${id}.ext4
+        local add_drive2=fc-${id}-2.ext4
+        rm -f $add_drive.ext4 $add_drive2.ext4
+        cp ${empty_fs} ${add_drive}
+        cp ${empty_fs} ${add_drive2}
+    done
+
+    declare -A ncpus
+    if [[ $cpubudget = "up" ]]; then
+        ncpus+=( ["mobilenetv2"]=1 ["resnet50"]=1 ["ssdmobilenetv2"]=1 ["ssdresnet50v1"]=2 ["smallbert"]=1 ["talkingheads"]=2 )
+    elif [[ $cpubudget = "down" ]]; then
+        ncpus+=( ["mobilenetv2"]=2 ["resnet50"]=2 ["ssdmobilenetv2"]=2 ["ssdresnet50v1"]=2 ["smallbert"]=2 ["talkingheads"]=2 )
+    fi
+    declare -A memory
+    memory+=( ["mobilenetv2"]=410 ["resnet50"]=1024 ["ssdmobilenetv2"]=1024 ["ssdresnet50v1"]=1434 ["smallbert"]=1024 ["talkingheads"]=2355 )
+
+
+    for id in $(seq 0 $last_idx); do
+        local add_drive=fc-${id}.ext4
+        local add_drive2=fc-${id}-2.ext4
+        TAP_DEV=$(./util_ipam.sh -t $id)
+        TAP_IP=$(./util_ipam.sh -h $id)
+        VM_IP=$(./util_ipam.sh -v $id)
+        VM_MASK=$(./util_ipam.sh -m $id)
+        MAYBE_MAC="$(cat /sys/class/net/tap$id/address)"
+        TAP_MAC="$(./util_ipam.sh -a $id)"
+        i=$(( id+1 ))
+        echo [parse/boot/${app%_*}/fc/$i/init/s] $(date +%s%6N)
+        ${FCROOT}/firectl/firectl \
+            --firecracker-binary=${FCROOT}/firecracker \
+            --kernel=docker-to-fc/ubuntu-vmlinux \
+            --root-drive=docker-to-fc/ubuntu-${app}.ext4:ro \
+            --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0 ip=$VM_IP::$TAP_IP:$VM_MASK:$TAP_DEV:eth0:off" \
+            --tap-device=$TAP_DEV/$TAP_MAC \
+            --add-drive="${add_drive}":rw \
+            --add-drive="${add_drive2}":rw \
+            --socket-path=tmp/fc-$id.sock \
+            --ncpus=${ncpus[$app]} \
+            --memory=${memory[$app]} &
+            # --kernel-opts="init=/bin/systemd noapic reboot=k panic=1 pci=off nomodules console=ttyS0" \
+    done
+    print_info "Running ${app}, n=$num"
+}
+
 function experiment() {
     local apps=(mobilenetv2 resnet50 smallbert ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
     turnoff_multi $n > /dev/null 2>&1
@@ -327,6 +452,62 @@ function experiment() {
                 turnoff_multi $n > /dev/null 2>&1
                 for id in $(seq 0 $last_idx); do
                     cat tmp/${app}_${id}.log  | grep 'inference_time'
+                done
+            done
+        done
+    done
+}
+
+function boottime() {
+    local apps=(mobilenetv2 resnet50 ssdmobilenetv2 ssdresnet50v1 smallbert talkingheads)
+    # local apps=(ssdresnet50v1 talkingheads)
+    turnoff_multi $n > /dev/null 2>&1
+    mkdir -p tmp
+    
+    for app in ${apps[@]}; do
+        # for n in 1; do
+        echo "[parse/header] CURRENT APPLICATION=$app"
+        for n in 1 5 10 20; do
+            echo "[parse/header] $app-pocket n=$n, i=10"
+
+            # for i in $(seq 1); do
+            for i in $(seq 1 5); do
+                local ssh_pids=()
+                sleep 3
+                multi_run up $app $n > /dev/null 2>&1 &
+                sleep $(bc <<< "10 + 5 * $n")
+                local last_idx=$(( n - 1 ))
+                for id in $(seq 0 $last_idx); do
+                    id2=$(( id + 1 > n ? n : id + 1))
+                    ID=$id bash config_by_misun.sh ssh-command "export CONTAINER_ID=$id2 && echo [parse/boot/${app%_*}/fc/$id2/init] \$(systemd-analyze | head -1 | awk '{ print \$10 }' | sed 's/s//g') \$(systemd-analyze | grep graphic | awk '{ print \$4 }' | sed 's/[sm]//g') && cd ${app} && echo -n '[parse/boot/${app%_*}/fc/$id2/boot] ' && date +%s%6N && python3 app.monolithic.fc.boot.py" > tmp/${app}_${id}.log 2>&1 &
+                    # ID=$id bash config_by_misun.sh ssh-command "echo [parse/boot/${app%_*}/fc/$i/init] $(systemd-analyze | head -1 | awk '{ print $10 }' | sed 's/s//g'), $(systemd-analyze | grep graphic | awk '{ print $4 }' | sed 's/s//g') && cd ${app} && echo -n '[parse/boot/${app%_*}/fc/$i/boot] ' && date +%s%6N && python3 app.monolithic.fc.boot.py" > tmp/${app}_${id}.log 2>&1 &
+                    # ID=$id bash config_by_misun.sh ssh-command "a=($(last boot)) && date -d \"$(echo \${a[@]:2})\" '+%s%6N' && cd ${app} && echo -n '[parse/boot/${app%_*}/fc/$i/boot] ' && date +%s%6N && python3 app.monolithic.fc.boot.py" > tmp/${app}_${id}.log 2>&1 &
+                    ssh_pids+=($!)
+                    sleep 1.5
+                done
+                wait ${ssh_pids[@]}
+                turnoff_multi $n > /dev/null 2>&1
+                for id in $(seq 0 $last_idx); do
+                    cat tmp/${app}_${id}.log | grep -E '\[parse/boot|\[parse/graph'
+                done
+            done
+
+            for i in $(seq 6 10); do
+                local ssh_pids=()
+                sleep 3
+                multi_run down $app $n > /dev/null 2>&1 &
+                sleep $(bc <<< "10 + 5 * $n")
+                local last_idx=$(( n - 1 ))
+                for id in $(seq 0 $last_idx); do
+                    id2=$(( id + 1 > n ? n : id + 1))
+                    ID=$id bash config_by_misun.sh ssh-command "export CONTAINER_ID=$id2 && echo [parse/boot/${app%_*}/fc/$id2/init] \$(systemd-analyze | head -1 | awk '{ print \$10 }' | sed 's/s//g') \$(systemd-analyze | grep graphic | awk '{ print \$4 }' | sed 's/[ms]//g') && cd ${app} && echo -n '[parse/boot/${app%_*}/fc/$id2/boot] ' && date +%s%6N && python3 app.monolithic.fc.boot.py" > tmp/${app}_${id}.log 2>&1 &
+                    ssh_pids+=($!)
+                    sleep 1.5
+                done
+                wait ${ssh_pids[@]}
+                turnoff_multi $n > /dev/null 2>&1
+                for id in $(seq 0 $last_idx); do
+                    cat tmp/${app}_${id}.log  | grep -E '\[parse/boot|\[parse/graph'
                 done
             done
         done

@@ -244,7 +244,7 @@ def pocket_wait(args):
     if global_option.debug:
         process = subprocess.Popen(command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
         for line in process.stdout:
-            sys.stdout.write(str(line))
+            sys.stdout.write(line.decode())
     else:
         process = subprocess.run(command, check=True)
 
